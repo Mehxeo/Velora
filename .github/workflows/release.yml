@@ -1,0 +1,169 @@
+# Builds, signs, and publishes installable artifacts to GitHub Releases on every v* tag.
+# electron-updater reads latest.yml / latest-mac.yml from the same release to deliver
+# automatic in-app updates to existing installs.
+#
+# ── Required secrets ─────────────────────────────────────────────────────────
+#   GH_TOKEN                    GitHub PAT (repo scope) — uploads release assets
+#   VITE_SUPABASE_URL           Supabase project URL
+#   VITE_SUPABASE_ANON_KEY      Supabase anon key
+#
+# ── Optional secrets (omit to build unsigned) ────────────────────────────────
+#   VELORA_BUILTIN_DEEPSEEK_KEY Bundled DeepSeek API key
+#   VELORA_BUILTIN_GEMINI_KEY   Bundled Gemini API key
+#   MAC_CERTS                   base64-encoded .p12 certificate (Apple Developer ID)
+#   MAC_CERTS_PASSWORD          Password for MAC_CERTS
+#   APPLE_ID                    Apple ID email (notarization)
+#   APPLE_ID_PASSWORD           App-specific password (notarization)
+#   APPLE_TEAM_ID               Apple Developer Team ID
+#   WIN_CERT                    base64-encoded .p12 (Windows Authenticode)
+#   WIN_CERT_PASSWORD           Password for WIN_CERT
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create releases + upload assets
+
+jobs:
+  # ── Create the GitHub Release first so both OS jobs can upload into it ─────
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create.outputs.upload_url }}
+      tag: ${{ github.ref_name }}
+    steps:
+      - name: Create GitHub Release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Velora ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          body: |
+            ## Velora ${{ github.ref_name }}
+
+            Download the installer for your platform below.
+
+            | Platform | File |
+            |----------|------|
+            | macOS (Apple Silicon) | `Velora-*-mac-arm64.dmg` |
+            | macOS (Intel) | `Velora-*-mac-x64.dmg` |
+            | Windows | `Velora-*-win-x64.exe` |
+            | Linux | `Velora-*-linux-x64.AppImage` |
+
+            **First-time install on macOS:** If Gatekeeper blocks the app, right-click → Open, or go to System Settings → Privacy & Security → Open Anyway.
+
+            **First-time install on Windows:** If SmartScreen shows a warning, click "More info" → "Run anyway".
+
+            **Existing users:** Velora will notify you automatically — just click "Restart to update".
+
+            ---
+            [veloraapp.xyz](https://veloraapp.xyz)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  # ── macOS build ──────────────────────────────────────────────────────────
+  build-mac:
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Import Mac certificate
+        if: env.MAC_CERTS != ''
+        env:
+          MAC_CERTS: ${{ secrets.MAC_CERTS }}
+          MAC_CERTS_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+        run: |
+          echo "$MAC_CERTS" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$MAC_CERTS_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VELORA_BUILTIN_DEEPSEEK_KEY: ${{ secrets.VELORA_BUILTIN_DEEPSEEK_KEY }}
+          VELORA_BUILTIN_GEMINI_KEY: ${{ secrets.VELORA_BUILTIN_GEMINI_KEY }}
+        run: npm run build
+
+      - name: Package & publish (mac)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --mac --publish always
+
+  # ── Windows build ────────────────────────────────────────────────────────
+  build-win:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VELORA_BUILTIN_DEEPSEEK_KEY: ${{ secrets.VELORA_BUILTIN_DEEPSEEK_KEY }}
+          VELORA_BUILTIN_GEMINI_KEY: ${{ secrets.VELORA_BUILTIN_GEMINI_KEY }}
+        run: npm run build
+
+      - name: Package & publish (win)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CERT }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: npx electron-builder --win --publish always
+
+  # ── Linux build ──────────────────────────────────────────────────────────
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VELORA_BUILTIN_DEEPSEEK_KEY: ${{ secrets.VELORA_BUILTIN_DEEPSEEK_KEY }}
+          VELORA_BUILTIN_GEMINI_KEY: ${{ secrets.VELORA_BUILTIN_GEMINI_KEY }}
+        run: npm run build
+
+      - name: Package & publish (linux)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: npx electron-builder --linux --publish always

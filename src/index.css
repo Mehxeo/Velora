@@ -1,0 +1,859 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(99, 179, 237, 0.25);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 179, 237, 0.45);
+  }
+}
+
+/* ─────────────────────────────────────────
+   Design tokens  –  Light mode (default)
+───────────────────────────────────────── */
+:root {
+  /* backgrounds */
+  --app-bg:
+    radial-gradient(900px 600px at 0% 0%, rgba(59, 130, 246, 0.12) 0%, transparent 55%),
+    radial-gradient(900px 700px at 100% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 55%),
+    linear-gradient(160deg, #f0f7ff 0%, #e8f5f0 50%, #eef6ff 100%);
+  --widget-bg: linear-gradient(155deg, rgba(240, 247, 255, 0.94) 0%, rgba(232, 245, 240, 0.94) 100%);
+
+  /* text */
+  --text-main: #0d2137;
+  --text-muted: #4d6a85;
+
+  /* panels */
+  --panel-bg: rgba(255, 255, 255, 0.7);
+  --panel-bg-strong: rgba(255, 255, 255, 0.85);
+  --panel-border: rgba(59, 130, 246, 0.15);
+  --panel-border-hover: rgba(59, 130, 246, 0.3);
+
+  /* surfaces */
+  --surface-soft: rgba(239, 246, 255, 0.7);
+  --surface-strong: rgba(220, 242, 255, 0.75);
+
+  /* accents */
+  --accent-blue: #3b82f6;
+  --accent-green: #10b981;
+  --accent-cyan: #06b6d4;
+  --accent-mid: #0ea5e9;
+
+  /* shadows */
+  --shadow-sm: 0 2px 8px rgba(15, 40, 80, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 40, 80, 0.1);
+  --shadow-lg: 0 16px 40px rgba(15, 40, 80, 0.12);
+  --shadow-elev: 0 20px 48px rgba(15, 40, 80, 0.14);
+
+  font-family: 'Inter', 'SF Pro Text', 'Segoe UI Variable Text', 'Helvetica Neue', system-ui, sans-serif;
+  color: var(--text-main);
+  font-size: 16px;
+  line-height: 1.65;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─────────────────────────────────────────
+   Dark mode tokens
+───────────────────────────────────────── */
+.dark {
+  --app-bg:
+    radial-gradient(900px 600px at -5% -5%, rgba(37, 99, 235, 0.18) 0%, transparent 55%),
+    radial-gradient(900px 700px at 105% 105%, rgba(16, 185, 129, 0.15) 0%, transparent 55%),
+    linear-gradient(160deg, #070f1e 0%, #081a14 50%, #060d1c 100%);
+  --widget-bg: linear-gradient(155deg, rgba(7, 15, 30, 0.92) 0%, rgba(8, 26, 20, 0.92) 100%);
+
+  --text-main: #e2eeff;
+  --text-muted: #7a9ab8;
+
+  --panel-bg: rgba(10, 20, 38, 0.65);
+  --panel-bg-strong: rgba(10, 20, 38, 0.8);
+  --panel-border: rgba(56, 140, 240, 0.18);
+  --panel-border-hover: rgba(56, 140, 240, 0.35);
+
+  --surface-soft: rgba(10, 25, 50, 0.55);
+  --surface-strong: rgba(12, 35, 60, 0.65);
+
+  --accent-blue: #60a5fa;
+  --accent-green: #34d399;
+  --accent-cyan: #22d3ee;
+  --accent-mid: #38bdf8;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.4);
+  --shadow-elev: 0 20px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* ─────────────────────────────────────────
+   Base reset
+───────────────────────────────────────── */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--app-bg);
+  color: var(--text-main);
+}
+
+/* ─────────────────────────────────────────
+   Top accent bar
+───────────────────────────────────────── */
+.velora-accent-bar {
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-cyan) 40%, var(--accent-green) 100%);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────
+   Desktop shell
+───────────────────────────────────────── */
+.velora-desktop-shell {
+  background: var(--app-bg);
+  isolation: isolate;
+}
+
+/* ─────────────────────────────────────────
+   Widget shell
+───────────────────────────────────────── */
+.velora-widget-shell {
+  background: var(--widget-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-elev), 0 0 0 0.5px rgba(56, 189, 248, 0.2) inset;
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+}
+
+/* ─────────────────────────────────────────
+   Animated ambient blobs
+───────────────────────────────────────── */
+.velora-bg-blur {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.65;
+  animation: vDrift 14s ease-in-out infinite;
+  z-index: 0;
+  will-change: transform;
+}
+
+.velora-bg-blur-a {
+  top: -180px;
+  left: -150px;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45), rgba(37, 99, 235, 0.25) 70%);
+}
+
+.velora-bg-blur-b {
+  right: -180px;
+  bottom: -180px;
+  width: 420px;
+  height: 420px;
+  animation-delay: 2s;
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.4), rgba(16, 185, 129, 0.2) 70%);
+}
+
+/* ─────────────────────────────────────────
+   Sidebar
+───────────────────────────────────────── */
+.velora-sidebar {
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+/* ─────────────────────────────────────────
+   Panels, headers, footers, modals
+───────────────────────────────────────── */
+.velora-panel,
+.velora-modal-card,
+.velora-composer,
+.velora-attachment-preview {
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.velora-chat-header,
+.velora-widget-header {
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.velora-chat-footer,
+.velora-widget-footer {
+  background: var(--panel-bg);
+  border-top: 1px solid var(--panel-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ─────────────────────────────────────────
+   Pills
+───────────────────────────────────────── */
+.velora-pill {
+  background: var(--surface-soft);
+  border: 1px solid var(--panel-border);
+  color: var(--text-main);
+  transition: all 160ms ease;
+}
+
+.velora-pill:hover {
+  background: var(--surface-strong);
+  border-color: var(--panel-border-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.velora-pill-active {
+  background: linear-gradient(130deg, rgba(59, 130, 246, 0.22) 0%, rgba(16, 185, 129, 0.22) 100%);
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2) inset;
+}
+
+/* ─────────────────────────────────────────
+   Primary gradient button
+───────────────────────────────────────── */
+.velora-primary-btn {
+  background: linear-gradient(130deg, var(--accent-blue), var(--accent-cyan) 45%, var(--accent-green));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+  transition: all 160ms ease;
+}
+
+.velora-primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+  filter: brightness(1.05);
+}
+
+/* ─────────────────────────────────────────
+   Tab buttons
+───────────────────────────────────────── */
+.velora-tab-btn {
+  background: var(--surface-soft);
+  border: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  font-weight: 500;
+  transition: all 160ms ease;
+}
+
+.velora-tab-btn:hover {
+  color: var(--text-main);
+  border-color: var(--panel-border-hover);
+}
+
+.velora-tab-active {
+  background: linear-gradient(130deg, rgba(59, 130, 246, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--text-main);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.15) inset;
+}
+
+/* ─────────────────────────────────────────
+   Chat messages
+───────────────────────────────────────── */
+.velora-message {
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-sm);
+  animation: vMessageIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: box-shadow 160ms;
+}
+
+.velora-message:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.velora-message-user {
+  background: linear-gradient(140deg, rgba(59, 130, 246, 0.2) 0%, rgba(16, 185, 129, 0.22) 100%);
+  border-color: rgba(56, 189, 248, 0.3);
+  border-left: 3px solid rgba(59, 130, 246, 0.55);
+}
+
+.velora-message-assistant {
+  background: var(--surface-soft);
+  border-left: 3px solid rgba(16, 185, 129, 0.45);
+}
+
+/* ─────────────────────────────────────────
+   Composer / input area
+───────────────────────────────────────── */
+.velora-composer {
+  border-radius: 18px;
+  transition: box-shadow 160ms, border-color 160ms;
+}
+
+.velora-composer:focus-within {
+  border-color: var(--panel-border-hover);
+  box-shadow: var(--shadow-md), 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ─────────────────────────────────────────
+   Icon buttons
+───────────────────────────────────────── */
+.velora-icon-btn {
+  color: var(--text-muted);
+  transition: all 140ms ease;
+}
+
+.velora-icon-btn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent-blue);
+}
+
+.velora-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─────────────────────────────────────────
+   Send button
+───────────────────────────────────────── */
+.velora-send-btn {
+  border: 1px solid var(--panel-border);
+  background: var(--surface-soft);
+  transition: all 160ms ease;
+}
+
+.velora-send-btn:not(:disabled) {
+  border-color: transparent;
+  background: linear-gradient(130deg, var(--accent-blue) 0%, var(--accent-cyan) 45%, var(--accent-green));
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+}
+
+.velora-send-btn:not(:disabled):hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+}
+
+/* ─────────────────────────────────────────
+   Loading pill
+───────────────────────────────────────── */
+.velora-loading-pill {
+  background: linear-gradient(130deg, rgba(59, 130, 246, 0.18) 0%, rgba(16, 185, 129, 0.18) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ─────────────────────────────────────────
+   File chip
+───────────────────────────────────────── */
+.velora-chip {
+  background: var(--surface-strong);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+/* ─────────────────────────────────────────
+   Modal
+───────────────────────────────────────── */
+.velora-modal-card {
+  color: var(--text-main);
+}
+
+/* ─────────────────────────────────────────
+   Toast
+───────────────────────────────────────── */
+.velora-toast {
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 12px;
+}
+
+/* ─────────────────────────────────────────
+   Prose (markdown)
+───────────────────────────────────────── */
+.velora-chat-scroll .prose,
+.velora-widget-scroll .prose {
+  color: var(--text-main);
+}
+
+.velora-chat-scroll .prose pre,
+.velora-widget-scroll .prose pre {
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(7, 15, 30, 0.85) !important;
+}
+
+.dark .velora-chat-scroll .prose pre,
+.dark .velora-widget-scroll .prose pre {
+  background: rgba(4, 10, 22, 0.9) !important;
+}
+
+.velora-chat-scroll .prose,
+.velora-widget-scroll .prose {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.velora-chat-scroll .prose code,
+.velora-widget-scroll .prose code {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.875em;
+}
+
+.velora-chat-scroll .prose :not(pre) > code,
+.velora-widget-scroll .prose :not(pre) > code {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent-blue);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.velora-chat-scroll .prose a,
+.velora-widget-scroll .prose a {
+  color: var(--accent-cyan);
+}
+
+.velora-chat-scroll .prose h1,
+.velora-chat-scroll .prose h2,
+.velora-chat-scroll .prose h3,
+.velora-widget-scroll .prose h1,
+.velora-widget-scroll .prose h2,
+.velora-widget-scroll .prose h3 {
+  color: var(--text-main);
+}
+
+.velora-chat-footer textarea,
+.velora-widget-footer textarea {
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────
+   Logo gradient
+───────────────────────────────────────── */
+.velora-logo-gradient {
+  background: linear-gradient(130deg, var(--accent-blue), var(--accent-cyan) 45%, var(--accent-green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─────────────────────────────────────────
+   Sidebar logo badge
+───────────────────────────────────────── */
+.velora-logo-badge {
+  background: linear-gradient(140deg, var(--accent-blue) 0%, var(--accent-cyan) 45%, var(--accent-green));
+  padding: 2px;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.velora-logo-badge-inner {
+  background: var(--panel-bg-strong);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─────────────────────────────────────────
+   Nav divider
+───────────────────────────────────────── */
+.velora-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--panel-border) 30%, var(--panel-border) 70%, transparent);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────
+   Chat list item
+───────────────────────────────────────── */
+.velora-chat-item {
+  background: var(--surface-soft);
+  border: 1px solid var(--panel-border);
+  transition: all 140ms ease;
+  border-radius: 10px;
+  animation: vSlideInLeft 220ms ease both;
+}
+
+.velora-chat-item:hover {
+  border-color: var(--panel-border-hover);
+  background: var(--surface-strong);
+}
+
+.velora-chat-item-active {
+  background: linear-gradient(130deg, rgba(59, 130, 246, 0.18) 0%, rgba(16, 185, 129, 0.16) 100%);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+/* ─────────────────────────────────────────
+   Model badge
+───────────────────────────────────────── */
+.velora-model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--accent-blue);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* ─────────────────────────────────────────
+   Modal overlay system
+   (WebkitAppRegion: no-drag set inline in JS)
+───────────────────────────────────────── */
+.velora-modal-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.velora-modal-overlay--in {
+  animation: vBackdropIn 200ms ease both;
+}
+
+.velora-modal-overlay--in .velora-modal-card {
+  animation: vCardIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.velora-modal-overlay--out {
+  animation: vBackdropOut 210ms ease both;
+  pointer-events: none;
+}
+
+.velora-modal-overlay--out .velora-modal-card {
+  animation: vCardOut 200ms ease both;
+}
+
+/* ─────────────────────────────────────────
+   Tab content transition
+───────────────────────────────────────── */
+.velora-tab-content {
+  animation: vTabContentIn 200ms ease both;
+}
+
+/* ─────────────────────────────────────────
+   Toast (improved)
+───────────────────────────────────────── */
+.velora-toast {
+  animation: vToastIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─────────────────────────────────────────
+   Loading dots
+───────────────────────────────────────── */
+.velora-dot-bounce {
+  animation: vDotBounce 1.2s ease-in-out infinite;
+}
+.velora-dot-bounce:nth-child(2) { animation-delay: 0.15s; }
+.velora-dot-bounce:nth-child(3) { animation-delay: 0.30s; }
+
+/* ─────────────────────────────────────────
+   Button active feedback
+───────────────────────────────────────── */
+.velora-primary-btn:active,
+.velora-pill:active,
+.velora-tab-btn:active,
+.velora-send-btn:active:not(:disabled) {
+  transform: scale(0.97) !important;
+  transition-duration: 60ms !important;
+}
+
+/* ─────────────────────────────────────────
+   Sidebar chat item stagger
+───────────────────────────────────────── */
+.velora-chat-list > *:nth-child(1)  { animation-delay:  0ms; }
+.velora-chat-list > *:nth-child(2)  { animation-delay: 20ms; }
+.velora-chat-list > *:nth-child(3)  { animation-delay: 40ms; }
+.velora-chat-list > *:nth-child(4)  { animation-delay: 55ms; }
+.velora-chat-list > *:nth-child(5)  { animation-delay: 70ms; }
+.velora-chat-list > *:nth-child(6)  { animation-delay: 82ms; }
+.velora-chat-list > *:nth-child(7)  { animation-delay: 94ms; }
+.velora-chat-list > *:nth-child(8)  { animation-delay:104ms; }
+.velora-chat-list > *:nth-child(n+9){ animation-delay:112ms; }
+
+/* ─────────────────────────────────────────
+   Model picker dropdown
+───────────────────────────────────────── */
+.velora-model-dropdown {
+  position: fixed;
+  z-index: 99999;
+  width: 320px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+  animation: vPickerIn 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top right;
+  isolation: isolate;
+  opacity: 1;
+  pointer-events: auto;
+  /* Solid panel — avoid frosted-glass parents washing out the menu */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #f4f8ff;
+  color: #0d2137;
+}
+
+.dark .velora-model-dropdown {
+  background: #0a1628;
+  color: #e2eeff;
+  border-color: rgba(56, 140, 240, 0.25);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.velora-model-dropdown-scroll {
+  max-height: min(420px, calc(100vh - 120px));
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.velora-model-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 14px;
+  text-align: left;
+  transition: background 120ms ease;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+.velora-model-dropdown-item:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.dark .velora-model-dropdown-item:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.velora-model-dropdown-item.selected {
+  background: rgba(59, 130, 246, 0.12);
+  border-left: 2px solid;
+  padding-left: 12px;
+}
+
+.dark .velora-model-dropdown-item.selected {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.velora-model-dropdown-item.unavailable {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.velora-model-dropdown-item.unavailable:hover {
+  background: transparent;
+}
+
+.velora-model-dropdown-divider {
+  height: 1px;
+  margin: 4px 12px;
+  background: var(--panel-border);
+}
+
+.dark .velora-model-dropdown-divider {
+  background: rgba(56, 140, 240, 0.15);
+}
+
+.velora-model-dropdown-footer {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.dark .velora-model-dropdown-footer {
+  border-top-color: rgba(56, 140, 240, 0.15);
+}
+
+/* ─────────────────────────────────────────
+   Animations
+───────────────────────────────────────── */
+@keyframes vMessageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes vDrift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  33%       { transform: translate3d(18px, -12px, 0); }
+  66%       { transform: translate3d(-8px,  10px, 0); }
+}
+
+@keyframes vFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vPulseRing {
+  0%   { box-shadow: 0 0 0 0   rgba(59, 130, 246, 0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(59, 130, 246, 0); }
+}
+
+@keyframes vBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes vBackdropOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes vCardIn {
+  from { opacity: 0; transform: scale(0.95) translateY(14px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes vCardOut {
+  from { opacity: 1; transform: scale(1)    translateY(0); }
+  to   { opacity: 0; transform: scale(0.96) translateY(8px); }
+}
+
+@keyframes vTabContentIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vToastIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes vDotBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30%            { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes vPickerIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes vSlideInLeft {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes vScaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes vAudioBar {
+  0%, 100% { transform: scaleY(0.2); opacity: 0.4; }
+  50%       { transform: scaleY(1);   opacity: 1; }
+}
+
+/* ─────────────────────────────────────────
+   Live Audio Panel
+───────────────────────────────────────── */
+.velora-live-audio-panel {
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-elev), 0 0 0 0.5px rgba(56, 189, 248, 0.18) inset;
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-radius: 20px;
+  animation: vCardIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.velora-audio-bar {
+  transform-origin: bottom center;
+  animation: vAudioBar 0.7s ease-in-out infinite;
+}
+
+.velora-audio-bar:nth-child(2)  { animation-duration: 0.55s; animation-delay:  40ms; }
+.velora-audio-bar:nth-child(3)  { animation-duration: 0.80s; animation-delay:  80ms; }
+.velora-audio-bar:nth-child(4)  { animation-duration: 0.60s; animation-delay: 120ms; }
+.velora-audio-bar:nth-child(5)  { animation-duration: 0.75s; animation-delay:  60ms; }
+.velora-audio-bar:nth-child(6)  { animation-duration: 0.50s; animation-delay: 150ms; }
+.velora-audio-bar:nth-child(7)  { animation-duration: 0.85s; animation-delay:  30ms; }
+.velora-audio-bar:nth-child(8)  { animation-duration: 0.65s; animation-delay: 100ms; }
+.velora-audio-bar:nth-child(9)  { animation-duration: 0.70s; animation-delay:  20ms; }
+.velora-audio-bar:nth-child(10) { animation-duration: 0.55s; animation-delay:  70ms; }
+.velora-audio-bar:nth-child(11) { animation-duration: 0.80s; animation-delay: 110ms; }
+.velora-audio-bar:nth-child(12) { animation-duration: 0.60s; animation-delay:  50ms; }
+.velora-audio-bar:nth-child(13) { animation-duration: 0.75s; animation-delay: 130ms; }
+.velora-audio-bar:nth-child(14) { animation-duration: 0.65s; animation-delay:  90ms; }
+.velora-audio-bar:nth-child(15) { animation-duration: 0.50s; animation-delay: 160ms; }
+.velora-audio-bar:nth-child(16) { animation-duration: 0.85s; animation-delay:  45ms; }
+
+/* ─────────────────────────────────────────
+   Responsive
+───────────────────────────────────────── */
+@media (max-width: 980px) {
+  .velora-desktop-shell > .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .velora-sidebar {
+    max-height: 38vh;
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .velora-chat-header,
+  .velora-chat-scroll,
+  .velora-chat-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
