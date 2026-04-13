@@ -109,11 +109,14 @@ jobs:
       - run: npm ci
 
       - name: Import Mac certificate
-        if: ${{ secrets.MAC_CERTS != '' }}
         env:
           MAC_CERTS: ${{ secrets.MAC_CERTS }}
           MAC_CERTS_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
         run: |
+          if [ -z "$MAC_CERTS" ]; then
+            echo "No MAC_CERTS secret; skipping keychain import."
+            exit 0
+          fi
           echo "$MAC_CERTS" | base64 --decode > certificate.p12
           security create-keychain -p "" build.keychain
           security import certificate.p12 -k build.keychain -P "$MAC_CERTS_PASSWORD" -T /usr/bin/codesign
@@ -128,24 +131,25 @@ jobs:
           VELORA_BUILTIN_GEMINI_KEY: ${{ secrets.VELORA_BUILTIN_GEMINI_KEY }}
         run: npm run build
 
-      # Empty CSC_LINK makes electron-builder fail with "not a file" — only set when signing.
-      - name: Package & publish (mac, signed)
-        if: ${{ secrets.MAC_CERTS != '' }}
+      # Do not set CSC_* when unsigned — empty CSC_LINK makes electron-builder fail with "not a file".
+      - name: Package & publish (mac)
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          MAC_CERTS_B64: ${{ secrets.MAC_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac --publish always
-
-      - name: Package & publish (mac, unsigned)
-        if: ${{ secrets.MAC_CERTS == '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --mac --publish always --config.mac.identity=null --config.mac.hardenedRuntime=false
+        run: |
+          if [ -n "$MAC_CERTS_B64" ]; then
+            export CSC_LINK="$MAC_CERTS_B64"
+            export CSC_KEY_PASSWORD
+            export APPLE_ID APPLE_ID_PASSWORD APPLE_TEAM_ID
+            npx electron-builder --mac --publish always
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            npx electron-builder --mac --publish always --config.mac.identity=null --config.mac.hardenedRuntime=false
+          fi
 
   # ── Windows build ────────────────────────────────────────────────────────
   build-win:
