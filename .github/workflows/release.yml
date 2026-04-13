@@ -25,9 +25,18 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to build (must exist on the remote, e.g. v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write   # create releases + upload assets
+
+env:
+  # Tag push: ref_name is v1.0.0. Manual run: use the input (ref_name would be a branch name).
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   # ── Create the GitHub Release first so both OS jobs can upload into it ─────
@@ -35,18 +44,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create.outputs.upload_url }}
-      tag: ${{ github.ref_name }}
+      tag: ${{ env.RELEASE_TAG }}
     steps:
       - name: Create GitHub Release
         id: create
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Velora ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Velora ${{ env.RELEASE_TAG }}
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          prerelease: ${{ contains(env.RELEASE_TAG, '-beta') || contains(env.RELEASE_TAG, '-rc') }}
           body: |
-            ## Velora ${{ github.ref_name }}
+            ## Velora ${{ env.RELEASE_TAG }}
 
             Download the installer for your platform below.
 
@@ -74,6 +83,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -83,7 +95,7 @@ jobs:
       - run: npm ci
 
       - name: Import Mac certificate
-        if: env.MAC_CERTS != ''
+        if: ${{ secrets.MAC_CERTS != '' }}
         env:
           MAC_CERTS: ${{ secrets.MAC_CERTS }}
           MAC_CERTS_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
@@ -102,7 +114,9 @@ jobs:
           VELORA_BUILTIN_GEMINI_KEY: ${{ secrets.VELORA_BUILTIN_GEMINI_KEY }}
         run: npm run build
 
-      - name: Package & publish (mac)
+      # Empty CSC_LINK makes electron-builder fail with "not a file" — only set when signing.
+      - name: Package & publish (mac, signed)
+        if: ${{ secrets.MAC_CERTS != '' }}
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_LINK: ${{ secrets.MAC_CERTS }}
@@ -112,12 +126,22 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac --publish always
 
+      - name: Package & publish (mac, unsigned)
+        if: ${{ secrets.MAC_CERTS == '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --mac --publish always --config.mac.identity=null --config.mac.hardenedRuntime=false
+
   # ── Windows build ────────────────────────────────────────────────────────
   build-win:
     needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -147,6 +171,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
