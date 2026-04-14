@@ -2,6 +2,9 @@
 # electron-updater reads latest.yml / latest-mac.yml from the same release to deliver
 # automatic in-app updates to existing installs.
 #
+# Windows: GitHub asset uploads can exceed the default publisher HTTP timeout on CI; see
+# package.json → build.publish[].timeout (ms). The win job retries transient failures.
+#
 # ── Required secrets ─────────────────────────────────────────────────────────
 #   GH_TOKEN                    GitHub PAT (repo scope) — uploads release assets
 #   VITE_SUPABASE_URL           Supabase project URL
@@ -157,6 +160,7 @@ jobs:
   build-win:
     needs: create-release
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -179,11 +183,24 @@ jobs:
         run: npm run build
 
       - name: Package & publish (win)
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           WIN_CSC_LINK: ${{ secrets.WIN_CERT }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-        run: npx electron-builder --win --publish always
+        run: |
+          set -e
+          for attempt in 1 2 3; do
+            if npx electron-builder --win --publish always; then
+              exit 0
+            fi
+            echo "::warning::electron-builder publish failed (attempt ${attempt}/3)"
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "Retrying in 90s..."
+            sleep 90
+          done
 
   # ── Linux build ──────────────────────────────────────────────────────────
   build-linux:

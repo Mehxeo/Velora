@@ -1,10 +1,8 @@
-type UserTier = 'free' | 'pro' | 'power'
-
 type AIRequest = { model: string; prompt: string; imageDataUrl?: string }
 type MultiAIRequest = { prompt: string; imageDataUrl?: string }
 type MultiAIResponse = { gpt: string; claude: string; gemini: string }
-type ApiKeys = { openai?: string; anthropic?: string; gemini?: string }
-type ApiKeyStatus = { openai: boolean; anthropic: boolean; gemini: boolean }
+type ApiKeys = { openai?: string; anthropic?: string; gemini?: string; deepseek?: string }
+type ApiKeyStatus = { openai: boolean; anthropic: boolean; gemini: boolean; deepseek: boolean }
 
 type AppSettings = {
   shareSafetyMode: boolean
@@ -15,24 +13,14 @@ type AppSettings = {
   stealthOverlay: boolean
 }
 
-type StripeConfig = {
-  secretKey: string
-  proPriceId: string
-}
-
-type SubscriptionStatus = {
-  tier: UserTier
-  customerId: string | null
-  subscriptionId: string | null
-  currentPeriodEnd: number | null
-}
-
 declare global {
   interface Window {
     velora: {
       // Window
       togglePanel: () => Promise<{ isExpanded: boolean }>
       getWindowState: () => Promise<{ isExpanded: boolean }>
+      quitApp: () => Promise<void>
+      hideWidget: () => Promise<{ isExpanded: boolean }>
 
       // Capture
       captureScreen: () => Promise<string>
@@ -58,17 +46,9 @@ declare global {
       getApiKeyStatus: () => Promise<ApiKeyStatus>
       saveApiKeys: (keys: ApiKeys) => Promise<ApiKeyStatus>
 
-      // Subscription / Stripe
-      getSubscription: () => Promise<SubscriptionStatus>
-      configureStripe: (config: StripeConfig) => Promise<{ ok: boolean; error?: string }>
-      createCheckout: (tier?: 'pro' | 'power') => Promise<{ ok: boolean; error?: string; url?: string }>
-      verifySubscription: () => Promise<SubscriptionStatus>
-      openCustomerPortal: () => Promise<{ ok: boolean; error?: string }>
-
       // Push listeners
       onWindowState: (handler: (payload: { isExpanded: boolean }) => void) => () => void
       onShortcut: (handler: (payload: { action: 'capture' | 'explain' | 'screen-context' | 'live-helper'; imageDataUrl?: string }) => void) => () => void
-      onSubscriptionUpdated: (handler: (payload: SubscriptionStatus) => void) => () => void
     }
   }
 }

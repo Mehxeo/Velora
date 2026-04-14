@@ -1,157 +1,136 @@
-# Velora Desktop
+# Velora
 
-Velora is an Electron + React desktop assistant for instant on-screen understanding.
+**Velora** is a cross-platform desktop app (Electron + React) that helps you understand what’s on your screen: capture, chat with AI models, and use a compact floating widget with global shortcuts.
 
-## Tech Stack
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/website-veloraapp.xyz-6366f1)](https://veloraapp.xyz)
 
-- Electron + TypeScript (main process, preload, global shortcuts)
-- React + TypeScript + Vite (renderer UI)
-- Tailwind CSS (styling)
-- Zustand (local-first state + chat history persistence)
+---
 
-## Implemented MVP Features
+## Install
 
-- Floating always-on-top compact widget
-- Expandable assistant panel with chat layout
-- Screenshot capture and image-to-model request support
-- Quick actions: Explain, Summarize, Solve, Simplify, Translate
-- Model selector: GPT, Claude, Gemini
-- BYOK settings (keys encrypted at rest using Electron safeStorage)
-- Local conversation history with search
-- Global shortcuts:
-  - Cmd/Ctrl + Shift + V: Show/Hide Velora
-  - Cmd/Ctrl + Shift + S: Trigger capture
-  - Cmd/Ctrl + Shift + E: Set Explain mode
-- Screen Share Safety Mode (transparent privacy mode that hides the overlay while enabled)
+**Recommended:** download installers from **[GitHub Releases](https://github.com/Mehxeo/velora/releases/latest)**.
 
-## Added Product Features
+You can also get builds from **[veloraapp.xyz](https://veloraapp.xyz)**.
 
-- Authentication with Supabase (Sign In / Sign Up)
-- Cloud sync option for accounts (chat logs + app workspace state)
-- Local save toggle and cloud save toggle in settings
-- Personalization profile:
-  - Preferred name
-  - Response tone
-  - Learning goal
-  - Custom instructions
-- Memory system:
-  - Add memory notes
-  - Pin memory notes that are injected into prompts
-- Topics tab:
-  - Create topics
-  - Add sources (image/text/url)
-  - Free-tier source visibility rules
-- Folders tab:
-  - Create folders
-  - Assign chats to folders
-- Bookmarks tab:
-  - Bookmark important responses
-  - Jump back to original chat quickly
-- Chatlogs tab:
-  - Search and navigate chat history
+| Platform | Typical file |
+|----------|----------------|
+| macOS (Apple Silicon) | `Velora-*-mac-arm64.dmg` |
+| macOS (Intel) | `Velora-*-mac-x64.dmg` |
+| Windows | `Velora-*-win-x64.exe` (NSIS installer) |
+| Linux | `Velora-*-linux-x64.AppImage` |
 
-## Run
+**macOS:** If Gatekeeper blocks the app the first time, right-click the app → **Open**, or use **System Settings → Privacy & Security → Open Anyway**.
+
+**Windows:** If SmartScreen appears, use **More info** → **Run anyway** (strongly reduced when the app is signed with an Authenticode certificate).
+
+**Updates:** Installed builds use `electron-updater` and check GitHub Releases for new versions.
+
+---
+
+## What you can do
+
+- **Floating widget** — Always-on-top compact window with shortcuts.
+- **Main panel** — Full chat UI with history, folders, bookmarks, topics, and memory snippets.
+- **Screen + AI** — Capture the screen and send context to GPT, Claude, Gemini, DeepSeek, Ollama (model-dependent).
+- **Quick actions** — Explain, summarize, solve, simplify, translate, and more.
+- **BYOK** — Bring your own API keys; stored locally and encrypted with the OS where available.
+- **Optional account** — Supabase sign-in and cloud sync of workspace state (chats, settings) when configured.
+- **Privacy tools** — Screen Share Safety Mode, capture protection, optional stealth overlay (see in-app descriptions).
+
+---
+
+## Configuration (optional)
+
+### API keys
+
+Add keys in **Settings** inside the app. If a provider has no key, Velora may show a short placeholder response for that model.
+
+### Supabase (auth + cloud sync)
+
+1. Create a Supabase project and run the SQL in **`supabase/schema.sql`** (creates `velora_user_state` with RLS).
+2. For **local dev**, set in `.env` or `.env.local`:
+
+   ```bash
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+3. Optional CI / release env vars are listed in **Contributing** and `.github/workflows/release.yml`.
+
+Without Supabase, the app runs in **local-only** mode (no sign-in or cloud sync).
+
+---
+
+## Development
 
 ```bash
-npm install
+git clone https://github.com/Mehxeo/velora.git
+cd velora
+npm ci
 npm run dev
 ```
 
-## Supabase Setup
+- **`npm run build`** — Production bundle (renderer + Electron main/preload).
+- **`npm run lint`** — ESLint.
 
-1. Copy `.env.example` to `.env` or `.env.local` and set values:
+Contributor workflow, release tagging, and CI details: **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)**.
 
-```bash
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
-```
+---
 
-2. Optional shared API keys for DeepSeek / Gemini (otherwise users rely on BYOK in Settings):
+## Tech stack
 
-```bash
-VELORA_BUILTIN_DEEPSEEK_KEY=...
-VELORA_BUILTIN_GEMINI_KEY=...
-```
+| Layer | Notes |
+|-------|--------|
+| **Electron** | Main process, preload, IPC, global shortcuts, secure storage, auto-update |
+| **React + Vite** | Renderer UI |
+| **Tailwind CSS** | Styling |
+| **Zustand** | Local-first state and persistence |
 
-3. Run SQL in your Supabase project:
+---
 
-```sql
--- use file: supabase/schema.sql
-```
-
-This creates the `velora_user_state` table with row-level security for per-user cloud sync.
-
-## Build
+## Building distributables locally
 
 ```bash
-npm run build
+npm run dist:mac     # macOS only
+npm run dist:win     # Windows only
+npm run dist:linux   # Linux AppImage
 ```
 
-## Download
+Place platform icons at `build/icon.icns`, `build/icon.ico`, and `build/icon.png` as referenced from `package.json`.
 
-Public releases are available at **[veloraapp.xyz](https://veloraapp.xyz)**.
+---
 
-| Platform | Installer |
-|----------|-----------|
-| macOS (Apple Silicon) | `Velora-x.x.x-mac-arm64.dmg` |
-| macOS (Intel) | `Velora-x.x.x-mac-x64.dmg` |
-| Windows | `Velora-x.x.x-win-x64.exe` (NSIS installer) |
+## Repository layout
 
-## Distribution
+| Path | Purpose |
+|------|---------|
+| `electron/` | Main process, preload, IPC |
+| `src/` | React application |
+| `supabase/` | SQL for optional cloud sync |
+| `.github/workflows/` | CI (e.g. release builds on `v*` tags) |
 
-### Publishing a new release
+---
 
-1. Bump `version` in `package.json`.
-2. Push a git tag: `git tag v1.2.0 && git push origin v1.2.0`
-3. GitHub Actions (`.github/workflows/release.yml`) builds for macOS and Windows, then publishes artifacts **directly to GitHub Releases** with `electron-builder --publish always`.
-4. `electron-updater` in existing installs automatically picks up the update via the `latest.yml` / `latest-mac.yml` feeds on the next check (8 s after launch, then every 4 hours).
+## Security & privacy
 
-### Required GitHub Secrets
+- API keys stay on the device (encrypted when the platform supports it).
+- Screen / privacy-related features are intended for legitimate workflow and privacy needs, not for bypassing institutional or exam rules.
 
-| Secret | Required | Purpose |
-|--------|----------|---------|
-| `GH_TOKEN` | **Yes** | Upload to GitHub Releases (needs `repo` scope) |
-| `VITE_SUPABASE_URL` | Yes | Supabase URL baked into renderer |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
-| `VELORA_BUILTIN_DEEPSEEK_KEY` | No | Bundled DeepSeek key |
-| `VELORA_BUILTIN_GEMINI_KEY` | No | Bundled Gemini key |
-| `MAC_CERTS` | No | base64 `.p12` — enables macOS code signing |
-| `MAC_CERTS_PASSWORD` | No | Password for `MAC_CERTS` |
-| `APPLE_ID` | No | Apple ID email for notarization |
-| `APPLE_ID_PASSWORD` | No | App-specific password for notarization |
-| `APPLE_TEAM_ID` | No | Apple Developer Team ID |
-| `WIN_CERT` | No | base64 `.p12` — removes Windows SmartScreen warning |
-| `WIN_CERT_PASSWORD` | No | Password for `WIN_CERT` |
+For security vulnerabilities, please report privately to the maintainers (e.g. via GitHub Security Advisories if enabled on the repo).
 
-### Local builds
+---
 
-```bash
-npm run dist:mac    # macOS only (must run on macOS)
-npm run dist:win    # Windows only (must run on Windows)
-npm run dist:linux  # Linux AppImage
-```
+## License
 
-### What end users see without code signing
+**MIT** — see [LICENSE](LICENSE).
 
-- **macOS:** Gatekeeper may block the first launch → right-click → Open, or System Settings → Privacy & Security → "Open Anyway".
-- **Windows:** SmartScreen "Unknown publisher" warning → click *More info* → *Run anyway*.
+---
 
-Adding code signing certificates (Apple Developer ID + Windows Authenticode) eliminates both warnings and is strongly recommended for public releases.
+## Links
 
-### App icons
-
-Place `build/icon.icns` (macOS), `build/icon.ico` (Windows), and `build/icon.png` (Linux) before building. See `build/ICONS.md` for generation instructions.
-
-### In-app auto-update
-
-`electron-updater` is integrated. Installed users are notified automatically when a new GitHub Release is published — no manual download needed after the first install.
-
-### Privacy during screen sharing
-
-Velora includes **Screen Share Safety Mode**, **capture protection**, and an optional **stealth overlay** so the assistant is less visible to screen capture in normal collaboration scenarios. These features are for legitimate privacy and workflow control, not for circumventing exam or institution policies.
-
-## Notes
-
-- If no API key is configured for a selected provider, Velora returns a local demo response.
-- API keys are stored locally on device and encrypted when platform encryption is available.
-- If Supabase is not configured, authentication and cloud sync are disabled while local mode still works.
+| Resource | URL |
+|----------|-----|
+| Website | [veloraapp.xyz](https://veloraapp.xyz) |
+| Releases | [GitHub Releases](https://github.com/Mehxeo/velora/releases) |
+| Contributing | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) |

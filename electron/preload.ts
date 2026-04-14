@@ -1,28 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-type UserTier = 'free' | 'pro' | 'power'
-
 type AIRequest = { model: string; prompt: string; imageDataUrl?: string }
 type MultiAIRequest = { prompt: string; imageDataUrl?: string }
 type MultiAIResponse = { gpt: string; claude: string; gemini: string }
-type ApiKeys = { openai?: string; anthropic?: string; gemini?: string }
-
-type StripeConfig = {
-  secretKey: string
-  proPriceId: string
-}
-
-type SubscriptionStatus = {
-  tier: UserTier
-  customerId: string | null
-  subscriptionId: string | null
-  currentPeriodEnd: number | null
-}
+type ApiKeys = { openai?: string; anthropic?: string; gemini?: string; deepseek?: string }
 
 contextBridge.exposeInMainWorld('velora', {
   // Window
   togglePanel: () => ipcRenderer.invoke('velora:toggle-panel'),
   getWindowState: () => ipcRenderer.invoke('velora:get-window-state'),
+  quitApp: () => ipcRenderer.invoke('velora:quit-app'),
+  hideWidget: () => ipcRenderer.invoke('velora:hide-widget'),
 
   // Capture
   captureScreen: () => ipcRenderer.invoke('velora:capture-screen'),
@@ -49,13 +37,6 @@ contextBridge.exposeInMainWorld('velora', {
   getApiKeyStatus: () => ipcRenderer.invoke('velora:get-api-key-status'),
   saveApiKeys: (keys: ApiKeys) => ipcRenderer.invoke('velora:save-api-keys', keys),
 
-  // Subscription / Stripe
-  getSubscription: () => ipcRenderer.invoke('velora:get-subscription') as Promise<SubscriptionStatus>,
-  configureStripe: (config: StripeConfig) => ipcRenderer.invoke('velora:configure-stripe', config) as Promise<{ ok: boolean; error?: string }>,
-  createCheckout: (_tier?: 'pro' | 'power') => ipcRenderer.invoke('velora:create-checkout') as Promise<{ ok: boolean; error?: string; url?: string }>,
-  verifySubscription: () => ipcRenderer.invoke('velora:verify-subscription') as Promise<SubscriptionStatus>,
-  openCustomerPortal: () => ipcRenderer.invoke('velora:open-customer-portal') as Promise<{ ok: boolean; error?: string }>,
-
   // Push listeners
   onWindowState: (handler: (payload: { isExpanded: boolean }) => void) => {
     const listener = (_: unknown, payload: { isExpanded: boolean }) => handler(payload)
@@ -66,11 +47,6 @@ contextBridge.exposeInMainWorld('velora', {
     const listener = (_: unknown, payload: { action: 'capture' | 'explain' | 'screen-context' | 'live-helper'; imageDataUrl?: string }) => handler(payload)
     ipcRenderer.on('velora:shortcut', listener)
     return () => ipcRenderer.removeListener('velora:shortcut', listener)
-  },
-  onSubscriptionUpdated: (handler: (payload: SubscriptionStatus) => void) => {
-    const listener = (_: unknown, payload: SubscriptionStatus) => handler(payload)
-    ipcRenderer.on('velora:subscription-updated', listener)
-    return () => ipcRenderer.removeListener('velora:subscription-updated', listener)
   },
 
   // Auto-updater

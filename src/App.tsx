@@ -7,10 +7,14 @@ import {
   PROVIDER_KEY_LINKS, type ModelProvider,
 } from './lib/models'
 import { hasSupabaseEnv, supabase, shareConversation, fetchSharedConversation } from './lib/supabase'
-import { UpgradeModal } from './components/UpgradeModal'
-import { MultiModelSplitView } from './components/MultiModelSplitView'
 import { LiveAudioPanel } from './components/LiveAudioPanel'
 import { useVeloraStore } from './store/useVeloraStore'
+import {
+  formatGlobalShortcutDisplay,
+  normalizeShortcutForDisplay,
+  normalizeShortcutForStorage,
+  widgetShortcutPlaceholder,
+} from './lib/keyboardLabels'
 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -48,14 +52,6 @@ const appRegionNoDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AuthMode = 'signin' | 'signup'
-type MultiModelResponse = { gpt: string; claude: string; gemini: string }
-type SubscriptionStatus = {
-  tier: 'free' | 'pro' | 'power'
-  customerId: string | null
-  subscriptionId: string | null
-  currentPeriodEnd: number | null
-}
-
 type SpeechRecognitionLike = {
   lang: string; interimResults: boolean; maxAlternatives: number
   onstart: (() => void) | null
@@ -73,10 +69,6 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
 function containsProfanity(text: string) {
   const lower = text.toLowerCase()
   return PROFANITY_WORDS.some((w) => lower.includes(w))
-}
-
-function formatCompareTranscript(r: MultiModelResponse): string {
-  return ['### GPT-4o Mini', r.gpt, '', '---', '', '### Claude 3.5 Sonnet', r.claude, '', '---', '', '### Gemini 2.0 Flash', r.gemini].join('\n')
 }
 
 // ─── Memoized message bubble ──────────────────────────────────────────────────
@@ -487,7 +479,7 @@ function App() {
     personalization, conversations, activeConversationId,
     setActiveTab, setSelectedModel, setSelectedAction, setShareSafetyMode,
     setExpanded, setLoading, setImageDataUrl, setAuthState, setSaveLocal,
-    setSaveCloud, setUserTier, setTheme, setPersonalization, addMemoryItem,
+    setSaveCloud, setTheme, setPersonalization, addMemoryItem,
     toggleMemoryPin, removeMemoryItem, createTopic, deleteTopic, addTopicSource,
     removeTopicSource, getVisibleTopicSources, createFolder, updateFolder, deleteFolder,
     assignConversationToFolder, addBookmark, removeBookmark, createConversation, deleteConversation,
@@ -497,9 +489,9 @@ function App() {
 
   const [input, setInput] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [apiKeys, setApiKeys] = useState({ openai: '', anthropic: '', gemini: '' })
+  const [apiKeys, setApiKeys] = useState({ openai: '', anthropic: '', gemini: '', deepseek: '' })
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>({ openai: false, anthropic: false, gemini: true, deepseek: true, ollama: true })
-  const [rawApiKeyStatus, setRawApiKeyStatus] = useState({ openai: false, anthropic: false, gemini: false })
+  const [rawApiKeyStatus, setRawApiKeyStatus] = useState({ openai: false, anthropic: false, gemini: false, deepseek: false })
   const [chatSearchText, setChatSearchText] = useState('')
   const [topicSearchText, setTopicSearchText] = useState('')
   const [folderSearchText, setFolderSearchText] = useState('')
@@ -521,9 +513,8 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [toast, setToast] = useState('')
   const [captureProtectionMode, setCaptureProtectionMode] = useState(false)
-  const [widgetShortcut, setWidgetShortcut] = useState('Alt+Space')
-  const [isCompareMode, setIsCompareMode] = useState(false)
-  const [multiModelResponses, setMultiModelResponses] = useState<MultiModelResponse | null>(null)
+  const [widgetShortcut, setWidgetShortcut] = useState(() => normalizeShortcutForDisplay('Alt+Space'))
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isWidgetMode, setIsWidgetMode] = useState(false)
   const [attachments, setAttachments] = useState<{ name: string; type: string; url: string }[]>([])
   const [screenContextFeature, setScreenContextFeature] = useState(false)
@@ -533,12 +524,6 @@ function App() {
   const [editingFolderName, setEditingFolderName] = useState('')
   const [editingFolderColor, setEditingFolderColor] = useState('')
   const [isRecording, setIsRecording] = useState(false)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
-  const [upgradeError, setUpgradeError] = useState('')
-  const [upgradeLoading, setUpgradeLoading] = useState(false)
-  const [subscription, setSubscription] = useState<SubscriptionStatus>({
-    tier: 'free', customerId: null, subscriptionId: null, currentPeriodEnd: null,
-  })
   const [liveHelperShortcut, setLiveHelperShortcut] = useState('CommandOrControl+Shift+H')
   const [shareModalConvId, setShareModalConvId] = useState<string | null>(null)
   const [shareToken, setShareToken] = useState('')
@@ -550,10 +535,6 @@ function App() {
   const [stealthOverlay, setStealthOverlay] = useState(false)
   const [liveAudioOpen, setLiveAudioOpen] = useState(false)
 
-  const isPremium = settings.premiumStatus !== 'free'
-  // BYOK: user has provided their own key for a paid provider — unlocks all features for free
-  const hasByok = rawApiKeyStatus.openai || rawApiKeyStatus.anthropic || rawApiKeyStatus.gemini
-  const canAccessPremium = isPremium || hasByok
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
@@ -647,20 +628,14 @@ function App() {
     window.velora.getSettings().then((s) => {
       setShareSafetyMode(s.shareSafetyMode)
       setCaptureProtectionMode(s.captureProtectionMode)
-      setWidgetShortcut(s.widgetShortcut || 'Alt+Space')
+      setWidgetShortcut(normalizeShortcutForDisplay(s.widgetShortcut || 'Alt+Space'))
       setScreenContextFeature(s.screenContextFeature || false)
       setLiveHelperShortcut(s.liveHelperShortcut || 'CommandOrControl+Shift+H')
       setStealthOverlay(s.stealthOverlay || false)
     })
     window.velora.getApiKeyStatus().then((s) => {
-      setRawApiKeyStatus({ openai: s.openai, anthropic: s.anthropic, gemini: s.gemini })
-      setApiKeyStatus({ ...s, gemini: true, deepseek: true, ollama: true })
-    })
-
-    // Load subscription and sync tier to Zustand store
-    window.velora.getSubscription().then((sub) => {
-      setSubscription(sub)
-      setUserTier(sub.tier)
+      setRawApiKeyStatus({ openai: s.openai, anthropic: s.anthropic, gemini: s.gemini, deepseek: s.deepseek })
+      setApiKeyStatus({ ...s, gemini: s.gemini || true, deepseek: s.deepseek || true, ollama: true })
     })
 
     const removeWindowState = window.velora.onWindowState(({ isExpanded }) => setExpanded(isExpanded))
@@ -675,15 +650,6 @@ function App() {
         setTimeout(() => { if (handleSendRef.current) void handleSendRef.current(prompt, payloadUrl) }, 100)
       }
       if (action === 'live-helper' && payloadUrl) {
-        const state = useVeloraStore.getState()
-        const tierIsFree = state.settings.premiumStatus === 'free'
-        // Allow BYOK users — they're self-funding their AI usage
-        const byok = rawApiKeyStatus.openai || rawApiKeyStatus.anthropic || rawApiKeyStatus.gemini
-        if (tierIsFree && !byok) {
-          setToast('Live Helper requires Pro or your own API key. Check Settings.')
-          window.setTimeout(() => setToast(''), 3000)
-          return
-        }
         setImageDataUrl(payloadUrl)
         setAttachments([])
         const prompt = "What's on my screen? Give me quick, useful insight about what I'm looking at."
@@ -691,13 +657,8 @@ function App() {
         setTimeout(() => { if (handleSendRef.current) void handleSendRef.current(prompt, payloadUrl) }, 100)
       }
     })
-    // Push subscription updates from main process (e.g. after Stripe payment)
-    const removeSubListener = window.velora.onSubscriptionUpdated((sub) => {
-      setSubscription(sub)
-      setUserTier(sub.tier)
-    })
-    return () => { removeWindowState(); removeShortcut(); removeSubListener() }
-  }, [handleCapture, setExpanded, setImageDataUrl, setSelectedAction, setShareSafetyMode, setUserTier])
+    return () => { removeWindowState(); removeShortcut() }
+  }, [handleCapture, setExpanded, setImageDataUrl, setSelectedAction, setShareSafetyMode])
 
   // Supabase auth
   useEffect(() => {
@@ -719,55 +680,12 @@ function App() {
     const el = messageListRef.current
     if (!el) return
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [activeConversationId, activeConversation?.messages.length, isLoading, multiModelResponses])
+  }, [activeConversationId, activeConversation?.messages.length, isLoading])
 
   const handleBookmark = useCallback(
     (conversationId: string, messageId: string, excerpt: string) => addBookmark(conversationId, messageId, excerpt),
     [addBookmark],
   )
-
-  // ─── Upgrade / Stripe handlers ────────────────────────────────────────────
-
-  const handleUpgradeCheckout = useCallback(async (tier: 'pro' | 'power') => {
-    setUpgradeError('')
-    setUpgradeLoading(true)
-    try {
-      const result = await window.velora.createCheckout(tier)
-      if (!result.ok) {
-        setUpgradeError(result.error ?? 'Unable to start checkout.')
-      }
-      // If ok, the browser opened the Stripe checkout page
-    } finally {
-      setUpgradeLoading(false)
-    }
-  }, [])
-
-  const handleVerifySubscription = useCallback(async () => {
-    setUpgradeLoading(true)
-    try {
-      const sub = await window.velora.verifySubscription()
-      setSubscription(sub)
-      setUserTier(sub.tier)
-      if (sub.tier !== 'free') {
-        showToast(`Subscription verified — ${sub.tier.charAt(0).toUpperCase() + sub.tier.slice(1)} plan active!`)
-        setUpgradeOpen(false)
-      } else {
-        showToast('No active subscription found. If you just paid, please wait a moment and try again.')
-      }
-    } finally {
-      setUpgradeLoading(false)
-    }
-  }, [setUserTier, showToast])
-
-  const handleOpenPortal = useCallback(async () => {
-    const result = await window.velora.openCustomerPortal()
-    if (!result.ok) showToast(result.error ?? 'Could not open billing portal.')
-  }, [showToast])
-
-  function requirePro(action: () => void) {
-    if (!canAccessPremium) { setUpgradeOpen(true); return }
-    action()
-  }
 
   function handleDictation() {
     const SpeechRecognition = getSpeechRecognitionConstructor()
@@ -784,7 +702,15 @@ function App() {
       const text = e.results[0]?.[0]?.transcript ?? ''
       if (text) setInput((prev) => prev + (prev ? ' ' : '') + text)
     }
-    recognition.onerror = (e) => { showToast(`Speech error: ${e.error}`); setIsRecording(false); recognitionRef.current = null }
+    recognition.onerror = (e) => {
+      const msg =
+        e.error === 'network'
+          ? 'Speech: Web Speech needs Google’s service — use Live Audio (Whisper) or try again.'
+          : `Speech error: ${e.error}`
+      showToast(msg)
+      setIsRecording(false)
+      recognitionRef.current = null
+    }
     recognition.onend = () => { setIsRecording(false); recognitionRef.current = null }
     recognition.start()
   }
@@ -818,20 +744,11 @@ function App() {
         },
       })
 
-      if (isCompareMode) {
-        const responses = await window.velora.runMultiAI({ prompt, imageDataUrl: curImageUrl ?? undefined })
-        setMultiModelResponses(responses)
-        addMessageToConversation(targetId, {
-          id: `msg_${Date.now()}_cmp`, role: 'assistant', content: formatCompareTranscript(responses),
-          model: selectedModel, createdAt: Date.now(), latencyMs: Math.round(performance.now() - t0),
-        })
-      } else {
-        const response = await window.velora.runAI({ model: selectedModel, prompt, imageDataUrl: curImageUrl ?? undefined })
-        addMessageToConversation(targetId, {
-          id: `msg_${Date.now()}_asst`, role: 'assistant', content: response,
-          model: selectedModel, createdAt: Date.now(), latencyMs: Math.round(performance.now() - t0),
-        })
-      }
+      const response = await window.velora.runAI({ model: selectedModel, prompt, imageDataUrl: curImageUrl ?? undefined })
+      addMessageToConversation(targetId, {
+        id: `msg_${Date.now()}_asst`, role: 'assistant', content: response,
+        model: selectedModel, createdAt: Date.now(), latencyMs: Math.round(performance.now() - t0),
+      })
       if (overrideImageDataUrl === undefined) setImageDataUrl(null)
     } catch (error) {
       addMessageToConversation(targetId, {
@@ -869,10 +786,20 @@ function App() {
 
   async function handleSaveKeys() {
     const status = await window.velora.saveApiKeys(apiKeys)
-    setRawApiKeyStatus({ openai: status.openai, anthropic: status.anthropic, gemini: status.gemini })
-    setApiKeyStatus({ ...status, gemini: true, deepseek: true, ollama: true })
-    setApiKeys({ openai: '', anthropic: '', gemini: '' })
+    setRawApiKeyStatus({ openai: status.openai, anthropic: status.anthropic, gemini: status.gemini, deepseek: status.deepseek })
+    setApiKeyStatus({ ...status, gemini: status.gemini || true, deepseek: status.deepseek || true, ollama: true })
+    setApiKeys({ openai: '', anthropic: '', gemini: '', deepseek: '' })
     setSettingsOpen(false)
+  }
+
+  async function handleSaveKeysQuiet() {
+    if (!apiKeys.openai && !apiKeys.anthropic && !apiKeys.gemini && !apiKeys.deepseek) return
+    const status = await window.velora.saveApiKeys(apiKeys)
+    setRawApiKeyStatus({ openai: status.openai, anthropic: status.anthropic, gemini: status.gemini, deepseek: status.deepseek })
+    setApiKeyStatus({ ...status, gemini: status.gemini || true, deepseek: status.deepseek || true, ollama: true })
+    setApiKeys({ openai: '', anthropic: '', gemini: '', deepseek: '' })
+    setToast('API keys saved')
+    window.setTimeout(() => setToast(''), 2500)
   }
 
   async function handleShareSafetyChange(enabled: boolean) {
@@ -881,8 +808,8 @@ function App() {
   }
 
   async function handleWidgetShortcutChange(shortcut: string) {
-    const next = await window.velora.setWidgetShortcut(shortcut)
-    setWidgetShortcut(next.widgetShortcut)
+    const next = await window.velora.setWidgetShortcut(normalizeShortcutForStorage(shortcut))
+    setWidgetShortcut(normalizeShortcutForDisplay(next.widgetShortcut || 'Alt+Space'))
   }
 
   async function handleCaptureProtectionChange(enabled: boolean) {
@@ -902,7 +829,6 @@ function App() {
   }
 
   async function handleStealthOverlayToggle(enabled: boolean) {
-    if (!canAccessPremium) { setUpgradeOpen(true); return }
     const result = await window.velora.setStealthOverlay(enabled)
     setStealthOverlay(result.stealthOverlay)
     showToast(enabled ? '👻 Stealth Overlay ON — widget is now invisible to recorders' : 'Stealth Overlay OFF')
@@ -1053,12 +979,30 @@ function App() {
             </div>
             <span className="text-sm font-bold velora-logo-gradient">Velora</span>
           </div>
-          <ModelPicker
-            value={selectedModel}
-            onChange={setSelectedModel}
-            apiKeyStatus={apiKeyStatus}
-            compact
-          />
+          <div className="flex items-center gap-1.5" style={appRegionNoDrag}>
+            <ModelPicker
+              value={selectedModel}
+              onChange={setSelectedModel}
+              apiKeyStatus={apiKeyStatus}
+              compact
+            />
+            <button
+              onClick={createConversation}
+              className="velora-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+              title="New Chat"
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M7 1v12M1 7h12" />
+              </svg>
+            </button>
+            <button
+              onClick={() => void window.velora.hideWidget()}
+              className="velora-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-red-500/10 hover:text-red-400 transition-colors"
+              title="Close widget"
+            >
+              <IconX />
+            </button>
+          </div>
         </header>
 
         <div ref={messageListRef} className="velora-widget-scroll flex-1 min-h-0 space-y-3 overflow-y-auto px-5 py-4 custom-scrollbar">
@@ -1082,8 +1026,17 @@ function App() {
         </div>
 
         {imageDataUrl && (
-          <div className="velora-attachment-preview mx-5 mb-2 rounded-xl p-2">
+          <div className="velora-attachment-preview mx-5 mb-2 rounded-xl p-2 relative group">
             <img src={imageDataUrl} alt="Screen capture" className="max-h-20 rounded-lg object-cover" />
+            <button
+              onClick={() => setImageDataUrl(null)}
+              className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+              title="Remove image"
+            >
+              <svg width="8" height="8" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M1 1L13 13M13 1L1 13" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -1136,14 +1089,6 @@ function App() {
               onChange={setSelectedModel}
               apiKeyStatus={apiKeyStatus}
             />
-            <button
-              className={`velora-pill rounded-full px-4 py-1.5 text-sm font-medium ${isCompareMode ? 'velora-pill-active' : ''}`}
-              onClick={() => requirePro(() => { setIsCompareMode((p) => !p); setMultiModelResponses(null) })}
-              title={!canAccessPremium ? 'Pro feature — upgrade or add your own API key' : undefined}
-            >
-              {isCompareMode ? '⚡ Compare On' : 'Compare'}
-              {!canAccessPremium && <span className="ml-1.5 text-[9px] font-black text-amber-400 align-super">PRO</span>}
-            </button>
           </div>
           <button
             className="velora-pill rounded-full px-4 py-1.5 text-sm font-medium"
@@ -1174,7 +1119,6 @@ function App() {
             </div>
           )}
 
-          {isCompareMode && <MultiModelSplitView responses={multiModelResponses} isLoading={isLoading} />}
         </div>
 
         {imageDataUrl && (
@@ -1289,52 +1233,26 @@ function App() {
               <>
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-base font-bold">{activeTopic.name}</h3>
-                  <div className="flex items-center gap-2">
-                    {!canAccessPremium && (
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                        {activeTopic.sources.length}/3 sources
-                      </span>
-                    )}
-                    <span className={`velora-model-badge ${canAccessPremium ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/25' : ''}`}>
-                      {settings.premiumStatus.toUpperCase()}
-                    </span>
-                  </div>
                 </div>
-
-                {/* Source limit upsell for non-premium/non-BYOK users */}
-                {!canAccessPremium && activeTopic.sources.length >= 3 && (
-                  <div className="mb-3 rounded-xl p-3 text-xs" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08))', border: '1px solid rgba(99,102,241,0.2)' }}>
-                    <p className="font-semibold mb-1" style={{ color: 'var(--accent-cyan)' }}>Source limit reached</p>
-                    <p style={{ color: 'var(--text-muted)' }} className="mb-2">Free plan allows 3 sources per topic. Add your own API key or upgrade for unlimited sources.</p>
-                    <button className="velora-primary-btn rounded-lg px-3 py-1.5 text-[11px] font-semibold"
-                      onClick={() => { setSettingsOpen(true) }}>
-                      Unlock — Add Key or Upgrade ↗
-                    </button>
-                  </div>
-                )}
 
                 <div className="mb-3 grid grid-cols-[140px_1fr_1fr_auto] gap-2">
                   <select value={topicSourceType} onChange={(e) => setTopicSourceType(e.target.value as 'image' | 'text' | 'url')}
-                    className="rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm focus:outline-none"
-                    disabled={!canAccessPremium && activeTopic.sources.length >= 3}>
+                    className="rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm focus:outline-none">
                     <option value="image">Image</option>
                     <option value="text">Text</option>
                     <option value="url">URL</option>
                   </select>
                   <input value={topicSourceLabel} onChange={(e) => setTopicSourceLabel(e.target.value)}
-                    className="rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm focus:outline-none disabled:opacity-50"
-                    placeholder="Label"
-                    disabled={!canAccessPremium && activeTopic.sources.length >= 3} />
+                    className="rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm focus:outline-none"
+                    placeholder="Label" />
                   <input value={topicSourceContent} onChange={(e) => setTopicSourceContent(e.target.value)}
-                    className="rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm focus:outline-none disabled:opacity-50"
-                    placeholder="URL, note, or base64"
-                    disabled={!canAccessPremium && activeTopic.sources.length >= 3} />
-                  <button className="velora-primary-btn rounded-xl px-3 py-2 text-sm disabled:opacity-40"
-                    disabled={!canAccessPremium && activeTopic.sources.length >= 3}
+                    className="rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm focus:outline-none"
+                    placeholder="URL, note, or base64" />
+                  <button className="velora-primary-btn rounded-xl px-3 py-2 text-sm"
                     onClick={() => {
                       const result = addTopicSource(activeTopic.id, {
                         type: topicSourceType, label: topicSourceLabel.trim() || 'Untitled', content: topicSourceContent.trim(),
-                      }, hasByok)
+                      }, true)
                       if (!result.ok) { showToast(result.error ?? 'Unable to add source'); return }
                       setTopicSourceLabel(''); setTopicSourceContent('')
                     }}>
@@ -1342,7 +1260,7 @@ function App() {
                   </button>
                 </div>
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto custom-scrollbar">
-                  {getVisibleTopicSources(activeTopic, hasByok).map((source) => (
+                  {getVisibleTopicSources(activeTopic, true).map((source) => (
                     <article key={source.id} className="velora-panel rounded-xl p-3">
                       <div className="mb-1 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-muted)' }}>
                         <span className="velora-model-badge">{source.type.toUpperCase()}</span>
@@ -1502,21 +1420,29 @@ function App() {
 
           {/* API Keys */}
           <div className="mb-5 space-y-3">
-            <p className="text-sm font-bold mb-2">API Keys</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold">API Keys</p>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Auto-saves when you leave each field</span>
+            </div>
             {[
-              { key: 'openai', label: 'OpenAI', saved: apiKeyStatus.openai },
-              { key: 'anthropic', label: 'Anthropic', saved: apiKeyStatus.anthropic },
-              { key: 'gemini', label: 'Gemini', saved: apiKeyStatus.gemini },
+              { key: 'openai', label: 'OpenAI', saved: rawApiKeyStatus.openai },
+              { key: 'anthropic', label: 'Anthropic', saved: rawApiKeyStatus.anthropic },
+              { key: 'gemini', label: 'Gemini', saved: rawApiKeyStatus.gemini },
+              { key: 'deepseek', label: 'DeepSeek', saved: rawApiKeyStatus.deepseek },
             ].map(({ key, label, saved }) => (
               <label key={key} className="block text-sm">
                 <span className="mb-1.5 flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
                   {label} API Key
-                  {saved && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold bg-green-500/15 text-green-400 border border-green-500/25">Saved</span>}
+                  {saved && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold bg-green-500/15 text-green-400 border border-green-500/25">✓ Saved</span>}
                 </span>
-                <input type="password"
+                <input
+                  type="password"
                   className="w-full rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder={saved ? '••••••••••••  (key saved — paste new to replace)' : `Paste ${label} key...`}
                   value={apiKeys[key as keyof typeof apiKeys]}
-                  onChange={(e) => setApiKeys((prev) => ({ ...prev, [key]: e.target.value }))} />
+                  onChange={(e) => setApiKeys((prev) => ({ ...prev, [key]: e.target.value }))}
+                  onBlur={() => void handleSaveKeysQuiet()}
+                />
               </label>
             ))}
           </div>
@@ -1527,7 +1453,7 @@ function App() {
               <span className="mb-1.5 block font-semibold">Widget Global Shortcut</span>
               <input type="text"
                 className="w-full rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                value={widgetShortcut} placeholder="e.g. Alt+Space"
+                value={widgetShortcut} placeholder={widgetShortcutPlaceholder()}
                 onChange={(e) => setWidgetShortcut(e.target.value)}
                 onBlur={() => handleWidgetShortcutChange(widgetShortcut)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleWidgetShortcutChange(widgetShortcut) }} />
@@ -1557,7 +1483,7 @@ function App() {
             {[
               { id: 'share-mode', checked: shareSafetyMode, onChange: (v: boolean) => void handleShareSafetyChange(v), label: 'Screen Share Safety Mode' },
               { id: 'capture-prot', checked: captureProtectionMode, onChange: (v: boolean) => void handleCaptureProtectionChange(v), label: 'Capture Protection' },
-              { id: 'screen-ctx', checked: screenContextFeature, onChange: (v: boolean) => void handleScreenContextChange(v), label: 'Screen Context (Cmd+Shift+A)' },
+              { id: 'screen-ctx', checked: screenContextFeature, onChange: (v: boolean) => void handleScreenContextChange(v), label: `Screen Context (${formatGlobalShortcutDisplay('CommandOrControl+Shift+A')})` },
             ].map(({ id, checked, onChange, label }) => (
               <div key={id} className="flex items-center gap-2.5">
                 <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-blue-500" />
@@ -1566,162 +1492,43 @@ function App() {
             ))}
           </div>
 
-          {/* Live Helper — Premium feature */}
+          {/* Live Helper */}
           <div className="mb-5 velora-panel rounded-xl overflow-hidden">
-            <div className="p-3 border-b border-black/5 dark:border-white/8 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold">Live Helper</p>
-                {canAccessPremium ? (
-                  <span className="rounded-full px-2 py-0.5 text-[10px] font-black bg-green-500/15 text-green-400 border border-green-500/25">ACTIVE</span>
-                ) : (
-                  <span className="rounded-full px-2 py-0.5 text-[10px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/25">PREMIUM</span>
-                )}
-              </div>
+            <div className="p-3 border-b border-black/5 dark:border-white/8">
+              <p className="text-sm font-bold">Live Helper</p>
             </div>
-            {canAccessPremium ? (
-              <div className="p-3 text-sm space-y-3">
-                <p style={{ color: 'var(--text-muted)' }} className="text-xs">
-                  Press the hotkey anytime — Velora instantly analyzes your screen and gives you AI insight.
-                </p>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Global Hotkey</span>
-                  <input type="text"
-                    className="w-full rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    value={liveHelperShortcut}
-                    placeholder="e.g. CommandOrControl+Shift+H"
-                    onChange={(e) => setLiveHelperShortcut(e.target.value)}
-                    onBlur={() => void handleLiveHelperShortcutChange(liveHelperShortcut)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void handleLiveHelperShortcutChange(liveHelperShortcut) }} />
-                  <span className="text-[11px] mt-1 block" style={{ color: 'var(--text-muted)' }}>Click outside or press Enter to apply</span>
-                </label>
-              </div>
-            ) : (
-              <div className="p-3 text-sm">
-                <p className="text-xs mb-2.5" style={{ color: 'var(--text-muted)' }}>
-                  Press a hotkey anywhere on your computer — Velora captures your screen and instantly tells you what's happening, what something means, or what to do next.
-                </p>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {[
-                    'Instant screen analysis',
-                    'Works in any app',
-                    'AI insight on demand',
-                    'Configurable hotkey',
-                  ].map((f) => (
-                    <div key={f} className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                      <span className="text-green-400">✓</span> {f}
-                    </div>
-                  ))}
-                </div>
-                <button className="velora-primary-btn w-full rounded-xl py-2 text-xs font-semibold"
-                  onClick={() => { setSettingsOpen(false); setUpgradeOpen(true) }}>
-                  Unlock — Add API Key or Upgrade ↗
-                </button>
-              </div>
-            )}
+            <div className="p-3 text-sm space-y-3">
+              <p style={{ color: 'var(--text-muted)' }} className="text-xs">
+                Press the hotkey anytime — Velora instantly analyzes your screen and gives you AI insight.
+              </p>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Global Hotkey</span>
+                <input type="text"
+                  className="w-full rounded-xl border border-black/8 dark:border-white/10 bg-white/60 dark:bg-black/20 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  value={liveHelperShortcut}
+                  placeholder="e.g. CommandOrControl+Shift+H"
+                  onChange={(e) => setLiveHelperShortcut(e.target.value)}
+                  onBlur={() => void handleLiveHelperShortcutChange(liveHelperShortcut)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleLiveHelperShortcutChange(liveHelperShortcut) }} />
+                <span className="text-[11px] mt-1 block" style={{ color: 'var(--text-muted)' }}>Click outside or press Enter to apply</span>
+              </label>
+            </div>
           </div>
 
           {/* Stealth Overlay */}
           <div className="mb-5 velora-panel rounded-xl overflow-hidden">
             <div className="p-3 border-b border-black/5 dark:border-white/8 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold">Stealth Overlay</p>
-                {canAccessPremium ? (
-                  <span className="rounded-full px-2 py-0.5 text-[10px] font-black bg-green-500/15 text-green-400 border border-green-500/25">ACTIVE</span>
-                ) : (
-                  <span className="rounded-full px-2 py-0.5 text-[10px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/25">PRO</span>
-                )}
-              </div>
-              {canAccessPremium && (
-                <label className="relative inline-flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" checked={stealthOverlay} onChange={(e) => void handleStealthOverlayToggle(e.target.checked)} className="sr-only peer" />
-                  <div className="h-5 w-9 rounded-full bg-black/10 dark:bg-white/10 transition-colors peer-checked:bg-blue-500 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4" />
-                </label>
-              )}
+              <p className="text-sm font-bold">Stealth Overlay</p>
+              <label className="relative inline-flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={stealthOverlay} onChange={(e) => void handleStealthOverlayToggle(e.target.checked)} className="sr-only peer" />
+                <div className="h-5 w-9 rounded-full bg-black/10 dark:bg-white/10 transition-colors peer-checked:bg-blue-500 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4" />
+              </label>
             </div>
             <div className="p-3 text-sm">
-              <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Makes the widget invisible to screen capture software. The overlay appears on top of any full-screen app using the highest system z-order.
               </p>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                {[
-                  'Hidden from screen recorders',
-                  'Sits above full-screen apps',
-                  'Frameless & transparent',
-                  'Instant toggle with hotkey',
-                ].map((f) => (
-                  <div key={f} className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                    <span style={{ color: 'var(--accent-cyan)' }}>✦</span> {f}
-                  </div>
-                ))}
-              </div>
-              {!canAccessPremium && (
-                <button className="velora-primary-btn w-full rounded-xl py-2 text-xs font-semibold mt-1"
-                  onClick={() => { setSettingsOpen(false); setUpgradeOpen(true) }}>
-                  Unlock — Add API Key or Upgrade to Pro ↗
-                </button>
-              )}
             </div>
-          </div>
-
-          {/* Subscription / Plan */}
-          <div className="mb-5 velora-panel rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold">Your Plan</p>
-              <span className={`rounded-full px-3 py-1 text-[11px] font-black border ${
-                subscription.tier === 'power'
-                  ? 'bg-purple-500/15 text-purple-400 border-purple-500/25'
-                  : subscription.tier === 'pro'
-                  ? 'bg-blue-500/15 text-blue-400 border-blue-500/25'
-                  : 'bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10'
-              }`}>
-                {subscription.tier.toUpperCase()}
-              </span>
-            </div>
-
-            {/* Feature comparison */}
-            <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
-              <div className="velora-panel rounded-xl p-2.5 space-y-1.5">
-                <p className="font-bold text-[11px] mb-1.5" style={{ color: 'var(--text-muted)' }}>FREE INCLUDES</p>
-                {['Chat with all 3 models', 'Interview & Homework modes', 'Quick actions', 'Voice & screen capture', 'Folders, bookmarks & memory', '3 topic sources'].map((f) => (
-                  <div key={f} className="flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                    <span className="text-green-400 text-[10px]">✓</span> {f}
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-xl p-2.5 space-y-1.5" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08))', border: '1px solid rgba(99,102,241,0.2)' }}>
-                <p className="font-bold text-[11px] mb-1.5" style={{ color: 'var(--accent-cyan)' }}>PRO ADDS</p>
-                {['Multi-model Compare', 'Unlimited topic sources', 'Live Helper (hotkey → AI)', 'Cloud sync', 'Stealth Overlay mode'].map((f) => (
-                  <div key={f} className="flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                    <span style={{ color: 'var(--accent-cyan)' }} className="text-[10px]">★</span> {f}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {subscription.tier === 'free' ? (
-              <button className="velora-primary-btn w-full rounded-xl py-2.5 text-sm"
-                onClick={() => { setSettingsOpen(false); setUpgradeOpen(true) }}>
-                Upgrade to Premium ↗
-              </button>
-            ) : (
-              <div className="space-y-2">
-                {subscription.currentPeriodEnd && (
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button className="velora-pill flex-1 rounded-xl px-3 py-2 text-xs font-semibold"
-                    onClick={() => void handleOpenPortal()}>
-                    Manage Billing
-                  </button>
-                  <button className="velora-pill flex-1 rounded-xl px-3 py-2 text-xs font-semibold"
-                    onClick={() => void handleVerifySubscription()}>
-                    Refresh Status
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Storage */}
@@ -1733,16 +1540,10 @@ function App() {
             </div>
             <div className="flex items-center gap-2.5">
               <input id="save-cloud" type="checkbox" checked={settings.saveCloud}
-                onChange={(e) => {
-                  if (e.target.checked && !canAccessPremium) { setUpgradeOpen(true); return }
-                  setSaveCloud(e.target.checked)
-                }}
+                onChange={(e) => setSaveCloud(e.target.checked)}
                 disabled={!auth.isAuthenticated}
                 className="h-4 w-4 accent-blue-500" />
-              <label htmlFor="save-cloud" className="cursor-pointer flex items-center gap-1.5">
-                Sync to cloud (Supabase)
-                {!canAccessPremium && <span className="rounded-full px-1.5 py-0.5 text-[9px] font-black bg-blue-500/15 text-blue-400 border border-blue-500/25">PRO</span>}
-              </label>
+              <label htmlFor="save-cloud" className="cursor-pointer">Sync to cloud (Supabase)</label>
             </div>
           </div>
 
@@ -1912,81 +1713,93 @@ function App() {
       {/* Drag handle / title bar */}
       <div className="h-10 w-full shrink-0 z-10" style={appRegionDrag} />
 
-      <div className="grid flex-1 min-h-0 grid-cols-[272px_1fr] overflow-hidden z-10">
-        {/* Sidebar */}
-        <aside className="velora-sidebar flex min-h-0 flex-col overflow-hidden" style={appRegionNoDrag}>
+      <div className="flex flex-1 min-h-0 overflow-hidden z-10">
+        {!sidebarOpen && (
+          <button
+            type="button"
+            aria-label="Show sidebar"
+            title="Show sidebar"
+            className="velora-sidebar-reveal flex w-10 shrink-0 flex-col items-center border-r border-black/[0.06] dark:border-white/[0.08] bg-[color-mix(in_srgb,var(--surface-soft)_80%,transparent)] pt-12 transition-colors hover:bg-[color-mix(in_srgb,var(--accent-blue)_12%,transparent)]"
+            style={appRegionNoDrag}
+            onClick={() => setSidebarOpen(true)}
+          >
+            <span className="text-lg font-semibold" style={{ color: 'var(--text-muted)' }}>⟩</span>
+          </button>
+        )}
+        {sidebarOpen && (
+        <aside className="velora-sidebar flex w-[272px] shrink-0 min-h-0 flex-col overflow-hidden border-r border-black/[0.06] dark:border-white/[0.08]" style={appRegionNoDrag}>
           <div className="velora-accent-bar" />
 
           <div className="flex flex-col flex-1 min-h-0 p-4 overflow-hidden">
             {/* Logo + New chat */}
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="velora-logo-badge">
+            <div className="mb-5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="velora-logo-badge shrink-0">
                   <div className="velora-logo-badge-inner">
                     <img src="/android-chrome-192x192.png" alt="Velora" className="h-6 w-6 object-contain" />
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h1 className="text-base font-black tracking-tight velora-logo-gradient">Velora</h1>
                 </div>
               </div>
-              <button className="velora-primary-btn rounded-full px-3.5 py-1.5 text-xs" onClick={createConversation}>
-                + New
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  title="Hide sidebar"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                  style={{ color: 'var(--text-muted)' }}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  ⟨
+                </button>
+                <button className="velora-primary-btn rounded-full px-3.5 py-1.5 text-xs" onClick={createConversation}>
+                  + New
+                </button>
+              </div>
             </div>
 
             {/* Live Helper + Stealth + Live Audio status */}
-            {canAccessPremium ? (
-              <div className="mb-3 space-y-1.5">
-                <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px]"
-                  style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.06))', border: '1px solid rgba(99,102,241,0.2)' }}>
-                  <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent-cyan)' }} />
-                  <span className="font-semibold" style={{ color: 'var(--accent-cyan)' }}>Live Helper</span>
-                  <span className="ml-auto font-mono opacity-60">{liveHelperShortcut.replace('CommandOrControl', '⌘').replace('Shift', '⇧').replace('+', '').replace('+', '')}</span>
-                </div>
-                {stealthOverlay && (
-                  <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px]"
-                    style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(99,102,241,0.08))', border: '1px solid rgba(168,85,247,0.3)' }}>
-                    <IconGhost />
-                    <span className="font-semibold" style={{ color: '#a78bfa' }}>Stealth Active</span>
-                    <span className="ml-auto text-[9px] font-black text-purple-400 opacity-70">INVISIBLE</span>
-                  </div>
-                )}
-                {/* Live Audio Checker toggle */}
-                <button
-                  onClick={() => setLiveAudioOpen(v => !v)}
-                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-all"
-                  style={{
-                    background: liveAudioOpen
-                      ? 'linear-gradient(135deg, rgba(52,211,153,0.12), rgba(16,185,129,0.08))'
-                      : 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(52,211,153,0.04))',
-                    border: `1px solid ${liveAudioOpen ? 'rgba(52,211,153,0.35)' : 'rgba(16,185,129,0.2)'}`,
-                  }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke={liveAudioOpen ? '#34d399' : 'var(--text-muted)'}
-                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8"  y1="23" x2="16" y2="23" />
-                  </svg>
-                  <span className="font-semibold" style={{ color: liveAudioOpen ? '#34d399' : 'var(--text-muted)' }}>
-                    Live Audio {liveAudioOpen ? '— ON' : 'Checker'}
-                  </span>
-                  {liveAudioOpen && (
-                    <span className="ml-auto h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: '#34d399' }} />
-                  )}
-                </button>
+            <div className="mb-3 space-y-1.5">
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px]"
+                style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.06))', border: '1px solid rgba(99,102,241,0.2)' }}>
+                <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent-cyan)' }} />
+                <span className="font-semibold" style={{ color: 'var(--accent-cyan)' }}>Live Helper</span>
+                <span className="ml-auto font-mono opacity-60">{formatGlobalShortcutDisplay(liveHelperShortcut)}</span>
               </div>
-            ) : (
-              <button className="mb-3 w-full flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-opacity hover:opacity-80"
-                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.06)' }}
-                onClick={() => setUpgradeOpen(true)}>
-                <span className="opacity-40">🔒</span>
-                <span style={{ color: 'var(--text-muted)' }}>Live Helper + Stealth + Audio</span>
-                <span className="ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/20">PRO</span>
+              {stealthOverlay && (
+                <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px]"
+                  style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(99,102,241,0.08))', border: '1px solid rgba(168,85,247,0.3)' }}>
+                  <IconGhost />
+                  <span className="font-semibold" style={{ color: '#a78bfa' }}>Stealth Active</span>
+                  <span className="ml-auto text-[9px] font-black text-purple-400 opacity-70">INVISIBLE</span>
+                </div>
+              )}
+              <button
+                onClick={() => setLiveAudioOpen(v => !v)}
+                className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] transition-all"
+                style={{
+                  background: liveAudioOpen
+                    ? 'linear-gradient(135deg, rgba(52,211,153,0.12), rgba(16,185,129,0.08))'
+                    : 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(52,211,153,0.04))',
+                  border: `1px solid ${liveAudioOpen ? 'rgba(52,211,153,0.35)' : 'rgba(16,185,129,0.2)'}`,
+                }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke={liveAudioOpen ? '#34d399' : 'var(--text-muted)'}
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8"  y1="23" x2="16" y2="23" />
+                </svg>
+                <span className="font-semibold" style={{ color: liveAudioOpen ? '#34d399' : 'var(--text-muted)' }}>
+                  Live Audio {liveAudioOpen ? '— ON' : 'Checker'}
+                </span>
+                {liveAudioOpen && (
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: '#34d399' }} />
+                )}
               </button>
-            )}
+            </div>
 
             {/* Nav tabs */}
             <div className="mb-4 grid grid-cols-2 gap-1.5">
@@ -2024,23 +1837,6 @@ function App() {
                 </button>
               </div>
             </div>
-
-            {/* Upgrade / BYOK banner */}
-            {!canAccessPremium && (
-              <button
-                className="mb-3 w-full rounded-2xl px-3 py-2.5 text-xs font-semibold text-left transition-all hover:-translate-y-0.5"
-                style={{
-                  background: 'linear-gradient(130deg, rgba(59,130,246,0.15) 0%, rgba(16,185,129,0.15) 100%)',
-                  border: '1px solid rgba(59,130,246,0.25)',
-                }}
-                onClick={() => setUpgradeOpen(true)}
-              >
-                <span className="velora-logo-gradient">✦ Unlock all features</span>
-                <span className="block mt-0.5 font-normal" style={{ color: 'var(--text-muted)' }}>
-                  Add your own API key for free access, or upgrade to Pro
-                </span>
-              </button>
-            )}
 
             {/* Chat history */}
             {activeTab === 'chatlogs' && (
@@ -2134,16 +1930,19 @@ function App() {
             )}
           </div>
         </aside>
+        )}
 
         {/* Main area */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {activeTab === 'chatlogs' && renderChatTab()}
         {activeTab === 'topics' && renderTopicsTab()}
         {activeTab === 'folders' && renderFoldersTab()}
         {activeTab === 'bookmarks' && renderBookmarksTab()}
+        </div>
       </div>
 
       {/* Live Audio Panel — floating bottom-right */}
-      {liveAudioOpen && canAccessPremium && (
+      {liveAudioOpen && (
         <div
           className="absolute bottom-5 right-5 z-[90]"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -2201,23 +2000,6 @@ function App() {
             <button className="velora-primary-btn rounded-xl px-5 py-2.5 text-sm" onClick={() => void submitAuth()}>Continue</button>
           </div>
         </div>
-      </AnimatedModal>
-
-      {/* Upgrade modal */}
-      <AnimatedModal
-        isOpen={upgradeOpen}
-        onClose={() => { setUpgradeOpen(false); setUpgradeError('') }}
-        zIndex={200}
-      >
-        <UpgradeModal
-          currentTier={subscription.tier}
-          onClose={() => { setUpgradeOpen(false); setUpgradeError('') }}
-          onCheckout={handleUpgradeCheckout}
-          onVerify={handleVerifySubscription}
-          onPortal={handleOpenPortal}
-          isLoading={upgradeLoading}
-          errorMessage={upgradeError}
-        />
       </AnimatedModal>
 
       {/* Toast */}

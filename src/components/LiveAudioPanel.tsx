@@ -53,7 +53,9 @@ export function LiveAudioPanel({ selectedModel, onInsertToChat, onClose }: Props
   const [autoRespond, setAutoRespond] = useState(false)
   const [sendResponseToChat, setSendResponseToChat] = useState(false)
   const [permError, setPermError] = useState('')
-  const [mode, setMode] = useState<'web-speech' | 'whisper'>('web-speech')
+  // Whisper default: Chromium Web Speech routes through Google’s service and often fails with a
+  // “network” error in Electron even when online.
+  const [mode, setMode] = useState<'web-speech' | 'whisper'>('whisper')
   const [isRecordingWhisper, setIsRecordingWhisper] = useState(false)
 
   const recognitionRef = useRef<any>(null)
@@ -170,7 +172,9 @@ export function LiveAudioPanel({ selectedModel, onInsertToChat, onClose }: Props
         setPermError('Microphone access denied.')
         setIsListening(false)
       } else if (e.error === 'network') {
-        setPermError('Network error – speech recognition requires internet connectivity.')
+        setPermError(
+          'Web Speech uses Google’s cloud and often fails in desktop apps. Switch to Whisper above (OpenAI key in Settings), or check firewall/VPN.',
+        )
       }
     }
 
@@ -319,7 +323,7 @@ export function LiveAudioPanel({ selectedModel, onInsertToChat, onClose }: Props
       <div className="px-4 pb-2 shrink-0">
         <div className="grid grid-cols-2 gap-1.5 rounded-xl p-1" style={{ background: 'var(--surface-soft)', border: '1px solid var(--panel-border)' }}>
           {([
-            { id: 'web-speech', label: '⚡ Live (Web Speech)', desc: 'Real-time, no extra key' },
+            { id: 'web-speech', label: '⚡ Live (Web Speech)', desc: 'Real-time; uses Google cloud' },
             { id: 'whisper', label: '🎯 Whisper', desc: 'High accuracy (OpenAI key)' },
           ] as const).map(({ id, label, desc }) => (
             <button

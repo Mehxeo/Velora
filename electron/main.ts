@@ -1,11 +1,10 @@
 import {
   app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain,
-  Menu, nativeImage, Tray, safeStorage, shell,
+  Menu, nativeImage, Tray, safeStorage,
 } from 'electron'
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 import { config as loadEnv } from 'dotenv'
-import Stripe from 'stripe'
 import Store from 'electron-store'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -33,8 +32,6 @@ function readBuiltinKeysFromBundle(): { deepseek: string; gemini: string } {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type UserTier = 'free' | 'pro' | 'power'
 
 type AIRequest = { model: string; prompt: string; imageDataUrl?: string }
 type MultiAIRequest = { prompt: string; imageDataUrl?: string }
@@ -64,18 +61,7 @@ type ApiKeys = {
   openai?: string
   anthropic?: string
   gemini?: string
-}
-
-type StripeConfig = {
-  secretKey: string
-  proPriceId: string
-}
-
-type SubscriptionStatus = {
-  tier: UserTier
-  customerId: string | null
-  subscriptionId: string | null
-  currentPeriodEnd: number | null
+  deepseek?: string
 }
 
 // ─── Optional built-in keys: bundle file (release) or VELORA_* from .env (dev) / OS env ─
@@ -89,15 +75,12 @@ const BUILTIN_GEMINI_KEY =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const isDev = !app.isPackaged
-const DEEP_LINK_PROTOCOL = 'velora'
 
 // ─── Electron Store ───────────────────────────────────────────────────────────
 
 const store = new Store<{
   settings: AppSettings
   keys: ApiKeys
-  stripeConfig: StripeConfig
-  subscription: SubscriptionStatus
 }>({
   name: 'velora-store',
 })
@@ -199,142 +182,28 @@ function loadApiKeys(): ApiKeys {
     openai: encrypted.openai ? decrypt(encrypted.openai) : '',
     anthropic: encrypted.anthropic ? decrypt(encrypted.anthropic) : '',
     gemini: encrypted.gemini ? decrypt(encrypted.gemini) : '',
+    deepseek: encrypted.deepseek ? decrypt(encrypted.deepseek) : '',
   }
   return cachedApiKeys
 }
 
 function saveApiKeys(keys: ApiKeys): void {
+  // Merge with existing keys — only overwrite a field if a new non-empty value is provided
+  const existing = loadApiKeys()
+  const merged: ApiKeys = {
+    openai: keys.openai?.trim() ? keys.openai.trim() : existing.openai,
+    anthropic: keys.anthropic?.trim() ? keys.anthropic.trim() : existing.anthropic,
+    gemini: keys.gemini?.trim() ? keys.gemini.trim() : existing.gemini,
+    deepseek: keys.deepseek?.trim() ? keys.deepseek.trim() : existing.deepseek,
+  }
   const encrypted: ApiKeys = {
-    openai: keys.openai ? encrypt(keys.openai) : '',
-    anthropic: keys.anthropic ? encrypt(keys.anthropic) : '',
-    gemini: keys.gemini ? encrypt(keys.gemini) : '',
+    openai: merged.openai ? encrypt(merged.openai) : '',
+    anthropic: merged.anthropic ? encrypt(merged.anthropic) : '',
+    gemini: merged.gemini ? encrypt(merged.gemini) : '',
+    deepseek: merged.deepseek ? encrypt(merged.deepseek) : '',
   }
   store.set('keys', encrypted)
-  cachedApiKeys = { openai: keys.openai ?? '', anthropic: keys.anthropic ?? '', gemini: keys.gemini ?? '' }
-}
-
-// ─── Stripe config ────────────────────────────────────────────────────────────
-
-function loadStripeConfig(): StripeConfig {
-  return store.get('stripeConfig', { secretKey: '', proPriceId: '' })
-}
-
-function saveStripeConfig(config: StripeConfig): void {
-  store.set('stripeConfig', config)
-}
-
-// ─── Subscription status ──────────────────────────────────────────────────────
-
-function loadSubscription(): SubscriptionStatus {
-  return store.get('subscription', {
-    tier: 'free',
-    customerId: null,
-    subscriptionId: null,
-    currentPeriodEnd: null,
-  })
-}
-
-function saveSubscription(sub: SubscriptionStatus): void {
-  store.set('subscription', sub)
-  // Broadcast to all windows so the UI updates immediately
-  broadcastSubscription(sub)
-}
-
-function broadcastSubscription(sub: SubscriptionStatus): void {
-  for (const win of [mainWindow, widgetWindow]) {
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('velora:subscription-updated', sub)
-    }
-  }
-}
-
-// ─── Stripe helpers ───────────────────────────────────────────────────────────
-
-function makeStripe(): Stripe | null {
-  const { secretKey } = loadStripeConfig()
-  if (!secretKey) return null
-  return new Stripe(secretKey, { apiVersion: '2025-03-31.basil' })
-}
-
-async function verifyCheckoutSession(sessionId: string): Promise<void> {
-  const stripe = makeStripe()
-  if (!stripe) return
-
-  try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription'],
-    })
-
-    if (session.payment_status === 'paid' && session.status === 'complete') {
-      const tier = (session.metadata?.tier as UserTier) ?? 'pro'
-      const sub = session.subscription as Stripe.Subscription | null
-      // In Stripe Basil API (2025+), current_period_end moved to items
-      const periodEnd = sub?.items?.data?.[0]?.current_period_end
-      saveSubscription({
-        tier,
-        customerId: typeof session.customer === 'string' ? session.customer : (session.customer as Stripe.Customer)?.id ?? null,
-        subscriptionId: sub?.id ?? null,
-        currentPeriodEnd: periodEnd ? periodEnd * 1000 : null,
-      })
-    }
-  } catch (e) {
-    console.error('[velora] Stripe verify error:', e)
-  }
-}
-
-async function verifyActiveSubscription(): Promise<SubscriptionStatus> {
-  const stripe = makeStripe()
-  const current = loadSubscription()
-  if (!stripe || !current.subscriptionId) return current
-
-  try {
-    const sub = await stripe.subscriptions.retrieve(current.subscriptionId)
-
-    const periodEnd = sub.items?.data?.[0]?.current_period_end
-
-    if (sub.status === 'active' || sub.status === 'trialing') {
-      const tier = (sub.metadata?.tier as UserTier) ?? current.tier
-      const updated: SubscriptionStatus = {
-        ...current,
-        tier,
-        currentPeriodEnd: periodEnd ? periodEnd * 1000 : current.currentPeriodEnd,
-      }
-      saveSubscription(updated)
-      return updated
-    }
-
-    // Subscription lapsed — downgrade to free
-    if (sub.status === 'canceled' || sub.status === 'unpaid' || sub.status === 'past_due') {
-      const downgraded: SubscriptionStatus = {
-        ...current,
-        tier: 'free',
-        currentPeriodEnd: periodEnd ? periodEnd * 1000 : current.currentPeriodEnd,
-      }
-      saveSubscription(downgraded)
-      return downgraded
-    }
-  } catch (e) {
-    console.error('[velora] Stripe subscription check error:', e)
-  }
-
-  return current
-}
-
-// ─── Deep link handler ────────────────────────────────────────────────────────
-
-function handleDeepLink(rawUrl: string): void {
-  try {
-    const url = new URL(rawUrl)
-    if (url.hostname === 'payment-success') {
-      const sessionId = url.searchParams.get('session_id')
-      if (sessionId) void verifyCheckoutSession(sessionId)
-    }
-    if (url.hostname === 'payment-cancel') {
-      broadcastSubscription(loadSubscription())
-    }
-  } catch {
-    // ignore malformed deep links
-  }
+  cachedApiKeys = merged
 }
 
 // ─── Capture protection ───────────────────────────────────────────────────────
@@ -718,10 +587,10 @@ async function checkOllama(): Promise<{ running: boolean; models: string[] }> {
   }
 }
 
-async function callDeepSeek(modelId: string, prompt: string): Promise<string> {
+async function callDeepSeek(apiKey: string, modelId: string, prompt: string): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BUILTIN_DEEPSEEK_KEY}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: modelId,
       messages: [{ role: 'user', content: prompt }],
@@ -755,8 +624,9 @@ async function runAIRequest(payload: AIRequest): Promise<string> {
     return callOllama(modelId, prompt)
   }
   if (modelId.startsWith('deepseek')) {
-    if (!BUILTIN_DEEPSEEK_KEY) return makeFallbackResponse('DeepSeek', prompt)
-    return callDeepSeek(modelId, prompt)
+    const deepseekKey = keys.deepseek || BUILTIN_DEEPSEEK_KEY
+    if (!deepseekKey) return makeFallbackResponse('DeepSeek', prompt)
+    return callDeepSeek(deepseekKey, modelId, prompt)
   }
   if (modelId.startsWith('gemini')) {
     const geminiKey = keys.gemini || BUILTIN_GEMINI_KEY
@@ -795,29 +665,12 @@ async function runMultiAIRequest(payload: MultiAIRequest): Promise<MultiAIRespon
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
-// Register deep link protocol handler (must be before app.whenReady)
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL, process.execPath, [path.resolve(process.argv[1])])
-  }
-} else {
-  app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL)
-}
-
-// macOS deep link via open-url event
-app.on('open-url', (event, url) => {
-  event.preventDefault()
-  handleDeepLink(url)
-})
-
-// Windows/Linux deep link via second-instance
+// Single instance lock — focus existing window if launched again
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', (_event, commandLine) => {
-    const deepLinkUrl = commandLine.find((arg) => arg.startsWith(`${DEEP_LINK_PROTOCOL}://`))
-    if (deepLinkUrl) handleDeepLink(deepLinkUrl)
+  app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.show()
@@ -832,9 +685,6 @@ app.whenReady().then(() => {
   registerShortcuts()
   setupAutoUpdater()
 
-  // On startup, verify subscription status in the background
-  setTimeout(() => { void verifyActiveSubscription() }, 3000)
-
   // ─── IPC: Window state ────────────────────────────────────────────────────
 
   ipcMain.handle('velora:toggle-panel', () => {
@@ -843,6 +693,18 @@ app.whenReady().then(() => {
       else { widgetWindow.show(); widgetWindow.focus(); return { isExpanded: true } }
     }
     return { isExpanded: true }
+  })
+
+  ipcMain.handle('velora:quit-app', () => {
+    app.quit()
+  })
+
+  /** Hide the floating widget only (main window / app keep running). */
+  ipcMain.handle('velora:hide-widget', () => {
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.hide()
+    }
+    return { isExpanded: false }
   })
 
   ipcMain.handle('velora:get-window-state', () => ({
@@ -901,72 +763,22 @@ app.whenReady().then(() => {
 
   ipcMain.handle('velora:get-api-key-status', () => {
     const keys = loadApiKeys()
-    return { openai: Boolean(keys.openai), anthropic: Boolean(keys.anthropic), gemini: Boolean(keys.gemini) }
+    return {
+      openai: Boolean(keys.openai),
+      anthropic: Boolean(keys.anthropic),
+      gemini: Boolean(keys.gemini),
+      deepseek: Boolean(keys.deepseek) || Boolean(BUILTIN_DEEPSEEK_KEY),
+    }
   })
 
   ipcMain.handle('velora:save-api-keys', (_, keys: ApiKeys) => {
     saveApiKeys(keys)
-    return { openai: Boolean(keys.openai), anthropic: Boolean(keys.anthropic), gemini: Boolean(keys.gemini) }
-  })
-
-  // ─── IPC: Stripe / Subscription ───────────────────────────────────────────
-
-  ipcMain.handle('velora:get-subscription', () => loadSubscription())
-
-  ipcMain.handle('velora:configure-stripe', (_, config: StripeConfig) => {
-    saveStripeConfig(config)
-    return { ok: true }
-  })
-
-  ipcMain.handle('velora:create-checkout', async () => {
-    const stripe = makeStripe()
-    if (!stripe) return { ok: false, error: 'Stripe not configured. Add your secret key in Settings.' }
-
-    const { proPriceId } = loadStripeConfig()
-    if (!proPriceId) return { ok: false, error: 'No Pro price ID configured.' }
-
-    try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{ price: proPriceId, quantity: 1 }],
-        mode: 'subscription',
-        success_url: `${DEEP_LINK_PROTOCOL}://payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${DEEP_LINK_PROTOCOL}://payment-cancel`,
-        metadata: { tier: 'pro' },
-      })
-      if (session.url) {
-        void shell.openExternal(session.url)
-        return { ok: true, url: session.url }
-      }
-      return { ok: false, error: 'Checkout session URL not available.' }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown Stripe error'
-      return { ok: false, error: msg }
-    }
-  })
-
-  ipcMain.handle('velora:verify-subscription', async () => {
-    const status = await verifyActiveSubscription()
-    return status
-  })
-
-  ipcMain.handle('velora:open-customer-portal', async () => {
-    const stripe = makeStripe()
-    if (!stripe) return { ok: false, error: 'Stripe not configured.' }
-
-    const { customerId } = loadSubscription()
-    if (!customerId) return { ok: false, error: 'No customer found. Please purchase a plan first.' }
-
-    try {
-      const session = await stripe.billingPortal.sessions.create({
-        customer: customerId,
-        return_url: `${DEEP_LINK_PROTOCOL}://portal-return`,
-      })
-      void shell.openExternal(session.url)
-      return { ok: true }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown error'
-      return { ok: false, error: msg }
+    const saved = loadApiKeys()
+    return {
+      openai: Boolean(saved.openai),
+      anthropic: Boolean(saved.anthropic),
+      gemini: Boolean(saved.gemini),
+      deepseek: Boolean(saved.deepseek) || Boolean(BUILTIN_DEEPSEEK_KEY),
     }
   })
 

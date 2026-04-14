@@ -81,7 +81,8 @@
     "publish": [
       {
         "provider": "github",
-        "releaseType": "release"
+        "releaseType": "release",
+        "timeout": 900000
       }
     ],
     "mac": {
@@ -100,7 +101,9 @@
       "sign": false
     },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
     },
     "nsis": {
       "oneClick": false,
