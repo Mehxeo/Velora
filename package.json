@@ -8,7 +8,7 @@
     "url": "https://github.com/Mehxeo/velora.git"
   },
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -100,10 +100,7 @@
       "sign": false
     },
     "win": {
-      "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
-      ]
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
     },
     "nsis": {
       "oneClick": false,
