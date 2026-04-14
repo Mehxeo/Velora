@@ -49,6 +49,13 @@ const mdComponents: Record<string, (props: any) => React.ReactElement> = {
 const appRegionDrag = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const appRegionNoDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
+/** Public download URLs (mirrored by getAppMeta in Electron). */
+const PUBLIC_DOWNLOAD = {
+  releases: 'https://github.com/Mehxeo/velora/releases/latest',
+  downloadPage: 'https://mehxeo.github.io/velora/',
+  homepage: 'https://veloraapp.xyz',
+} as const
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AuthMode = 'signin' | 'signup'
@@ -534,7 +541,13 @@ function App() {
   const [importError, setImportError] = useState('')
   const [stealthOverlay, setStealthOverlay] = useState(false)
   const [liveAudioOpen, setLiveAudioOpen] = useState(false)
-
+  const [appMeta, setAppMeta] = useState<{
+    version: string
+    releasesUrl: string
+    downloadPageUrl: string
+    homepage: string
+  } | null>(null)
+  const [updateReady, setUpdateReady] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
@@ -622,9 +635,22 @@ function App() {
     }
   }, [setImageDataUrl, setLoading])
 
+  useEffect(() => {
+    const removeUpdater = window.velora.onUpdater((p) => {
+      if (p.event === 'available' && p.version) showToast(`Update v${p.version} available — downloading…`)
+      if (p.event === 'downloaded' && p.version) {
+        setUpdateReady(true)
+        showToast(`Update v${p.version} ready — use “Restart to update” below.`)
+      }
+      if (p.event === 'error' && p.message) showToast(`Update: ${p.message}`)
+    })
+    return removeUpdater
+  }, [showToast])
+
   // Initialization
   useEffect(() => {
     window.velora.getWindowState().then(({ isExpanded }) => setExpanded(isExpanded))
+    window.velora.getAppMeta().then(setAppMeta).catch(() => null)
     window.velora.getSettings().then((s) => {
       setShareSafetyMode(s.shareSafetyMode)
       setCaptureProtectionMode(s.captureProtectionMode)
@@ -1567,6 +1593,62 @@ function App() {
                 rows={3} placeholder="Custom instructions" value={personalization.customInstructions}
                 onChange={(e) => setPersonalization({ customInstructions: e.target.value })} />
             </div>
+          </div>
+
+          {/* About & updates — installers + auto-update */}
+          <div className="mb-5 velora-panel rounded-xl p-3 text-sm space-y-3">
+            <p className="font-bold">About & updates</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {appMeta ? (
+                <>Version <span className="font-mono text-[13px]" style={{ color: 'var(--text-main)' }}>{appMeta.version}</span></>
+              ) : (
+                '…'
+              )}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="velora-pill rounded-xl px-3 py-1.5 text-xs font-medium"
+                onClick={() => void window.velora.openExternal(appMeta?.downloadPageUrl ?? PUBLIC_DOWNLOAD.downloadPage)}
+              >
+                Download page
+              </button>
+              <button
+                type="button"
+                className="velora-pill rounded-xl px-3 py-1.5 text-xs font-medium"
+                onClick={() => void window.velora.openExternal(appMeta?.releasesUrl ?? PUBLIC_DOWNLOAD.releases)}
+              >
+                GitHub Releases
+              </button>
+              <button
+                type="button"
+                className="velora-pill rounded-xl px-3 py-1.5 text-xs font-medium"
+                onClick={() => void window.velora.openExternal(appMeta?.homepage ?? PUBLIC_DOWNLOAD.homepage)}
+              >
+                Website
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <button
+                type="button"
+                className="velora-primary-btn rounded-xl px-3 py-1.5 text-xs font-semibold"
+                onClick={() => void window.velora.checkForUpdates()}
+              >
+                Check for updates
+              </button>
+              {updateReady && (
+                <button
+                  type="button"
+                  className="rounded-xl px-3 py-1.5 text-xs font-semibold border border-emerald-500/35 bg-emerald-500/15 text-emerald-400"
+                  onClick={() => void window.velora.installUpdate()}
+                >
+                  Restart to update
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              New here? Download the installer for your OS from the download page, run it, then add API keys above. Existing installs update automatically from GitHub Releases.
+            </p>
           </div>
 
           {/* Memory */}

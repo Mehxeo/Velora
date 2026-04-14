@@ -81,6 +81,8 @@
     "publish": [
       {
         "provider": "github",
+        "owner": "Mehxeo",
+        "repo": "velora",
         "releaseType": "release",
         "timeout": 900000
       }

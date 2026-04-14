@@ -21,6 +21,13 @@ declare global {
       getWindowState: () => Promise<{ isExpanded: boolean }>
       quitApp: () => Promise<void>
       hideWidget: () => Promise<{ isExpanded: boolean }>
+      getAppMeta: () => Promise<{
+        version: string
+        releasesUrl: string
+        downloadPageUrl: string
+        homepage: string
+      }>
+      openExternal: (url: string) => Promise<{ ok: boolean }>
 
       // Capture
       captureScreen: () => Promise<string>
@@ -49,6 +56,17 @@ declare global {
       // Push listeners
       onWindowState: (handler: (payload: { isExpanded: boolean }) => void) => () => void
       onShortcut: (handler: (payload: { action: 'capture' | 'explain' | 'screen-context' | 'live-helper'; imageDataUrl?: string }) => void) => () => void
+
+      checkForUpdates: () => Promise<{ status: string }>
+      installUpdate: () => Promise<void>
+      onUpdater: (handler: (payload: {
+        event: 'checking' | 'available' | 'not-available' | 'progress' | 'downloaded' | 'error'
+        version?: string
+        percent?: number
+        transferred?: number
+        total?: number
+        message?: string
+      }) => void) => () => void
     }
   }
 }

@@ -11,6 +11,13 @@ contextBridge.exposeInMainWorld('velora', {
   getWindowState: () => ipcRenderer.invoke('velora:get-window-state'),
   quitApp: () => ipcRenderer.invoke('velora:quit-app'),
   hideWidget: () => ipcRenderer.invoke('velora:hide-widget'),
+  getAppMeta: () => ipcRenderer.invoke('velora:get-app-meta') as Promise<{
+    version: string
+    releasesUrl: string
+    downloadPageUrl: string
+    homepage: string
+  }>,
+  openExternal: (url: string) => ipcRenderer.invoke('velora:open-external', url) as Promise<{ ok: boolean }>,
 
   // Capture
   captureScreen: () => ipcRenderer.invoke('velora:capture-screen'),

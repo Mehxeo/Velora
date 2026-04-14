@@ -62,8 +62,17 @@ The workflow creates the GitHub Release and runs `electron-builder --publish alw
 
 GitHub asset uploads are large; `package.json` sets a longer `build.publish[].timeout` for the GitHub publisher. The Windows job retries failed publishes a few times to handle transient network issues. Avoid defining multiple Windows targets that produce the **same** `artifactName` (e.g. NSIS + portable with identical names), or uploads can conflict on the release.
 
+## Public download page (GitHub Pages)
+
+The `docs/` folder includes `index.html`, a static page that calls the GitHub API and lists **Download** buttons for the latest release assets (Windows `.exe`, macOS `.dmg`, Linux `.AppImage`).
+
+- Workflow: `.github/workflows/pages.yml` deploys `docs/` to GitHub Pages on pushes to `main` that touch `docs/` or the workflow.
+- **One-time setup:** Repository **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+- Typical URL: `https://<user>.github.io/<repo>/` (for example `https://mehxeo.github.io/velora/`).
+
 ## Code layout
 
+- **`docs/`** — GitHub Pages download landing (`index.html`) and this guide.
 - **`electron/`** — Main process (`main.ts`), preload (`preload.ts`), IPC, shortcuts, updater.
 - **`src/`** — React renderer (UI, state, Supabase client).
 - **`build/`** — Icons, macOS entitlements, etc.

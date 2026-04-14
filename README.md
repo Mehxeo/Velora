@@ -9,9 +9,11 @@
 
 ## Install
 
-**Recommended:** download installers from **[GitHub Releases](https://github.com/Mehxeo/velora/releases/latest)**.
+**Download installers (pick Windows / macOS / Linux):**
 
-You can also get builds from **[veloraapp.xyz](https://veloraapp.xyz)**.
+### [Download page (GitHub Pages)](https://mehxeo.github.io/velora/)
+
+That page loads the **latest GitHub Release** and links directly to each installer. If it is not deployed yet, use **[GitHub Releases](https://github.com/Mehxeo/velora/releases/latest)** or **[veloraapp.xyz](https://veloraapp.xyz)**.
 
 | Platform | Typical file |
 |----------|----------------|
@@ -131,6 +133,7 @@ For security vulnerabilities, please report privately to the maintainers (e.g. v
 
 | Resource | URL |
 |----------|-----|
+| **Download page** | **[mehxeo.github.io/velora](https://mehxeo.github.io/velora/)** (installers) |
 | Website | [veloraapp.xyz](https://veloraapp.xyz) |
 | Releases | [GitHub Releases](https://github.com/Mehxeo/velora/releases) |
 | Contributing | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) |

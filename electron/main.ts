@@ -1,6 +1,6 @@
 import {
   app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain,
-  Menu, nativeImage, Tray, safeStorage,
+  Menu, nativeImage, shell, Tray, safeStorage,
 } from 'electron'
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
@@ -798,6 +798,24 @@ app.whenReady().then(() => {
 
   ipcMain.handle('velora:install-update', () => {
     autoUpdater.quitAndInstall()
+  })
+
+  ipcMain.handle('velora:get-app-meta', () => ({
+    version: app.getVersion(),
+    releasesUrl: 'https://github.com/Mehxeo/velora/releases/latest',
+    downloadPageUrl: 'https://mehxeo.github.io/velora/',
+    homepage: 'https://veloraapp.xyz',
+  }))
+
+  ipcMain.handle('velora:open-external', async (_, url: string) => {
+    try {
+      const u = new URL(url)
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false as const }
+      await shell.openExternal(url)
+      return { ok: true as const }
+    } catch {
+      return { ok: false as const }
+    }
   })
 
   // ─── Microphone permission (macOS system-level) ───────────────────────────
