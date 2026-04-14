@@ -20,6 +20,8 @@
 
 name: Release
 
+# Step-level `if:` must not use `secrets.*` (invalid expression context). Branch inside `run:` instead.
+
 on:
   push:
     tags:
