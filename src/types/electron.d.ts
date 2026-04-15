@@ -16,6 +16,8 @@ type AppSettings = {
 declare global {
   interface Window {
     velora: {
+      platform: NodeJS.Platform
+
       // Window
       togglePanel: () => Promise<{ isExpanded: boolean }>
       getWindowState: () => Promise<{ isExpanded: boolean }>

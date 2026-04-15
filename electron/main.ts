@@ -75,6 +75,19 @@ const BUILTIN_GEMINI_KEY =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const isDev = !app.isPackaged
+const isMac = process.platform === 'darwin'
+const isWin = process.platform === 'win32'
+
+/** Windows reserves Alt+Space for the system window menu — avoid as default / migrate stored value. */
+function defaultWidgetShortcut(): string {
+  return isWin ? 'Control+Shift+Space' : 'Alt+Space'
+}
+
+function normalizeWidgetShortcutForOs(shortcut: string): string {
+  const s = shortcut.trim()
+  if (isWin && /^alt\s*\+\s*space$/i.test(s)) return defaultWidgetShortcut()
+  return shortcut
+}
 
 // ─── Electron Store ───────────────────────────────────────────────────────────
 
@@ -157,14 +170,21 @@ function decrypt(secret: string): string {
 
 function loadSettings(): AppSettings {
   if (cachedSettings) return cachedSettings
-  cachedSettings = store.get('settings', {
+  const defaults: AppSettings = {
     shareSafetyMode: false,
     captureProtectionMode: false,
-    widgetShortcut: 'Alt+Space',
+    widgetShortcut: defaultWidgetShortcut(),
     screenContextFeature: false,
     liveHelperShortcut: 'CommandOrControl+Shift+H',
     stealthOverlay: false,
-  })
+  }
+  const raw = store.get('settings') as Partial<AppSettings> | undefined
+  const merged: AppSettings = { ...defaults, ...(raw ?? {}) }
+  if (isWin && /^alt\s*\+\s*space$/i.test((merged.widgetShortcut ?? '').trim())) {
+    merged.widgetShortcut = 'Control+Shift+Space'
+    store.set('settings', merged)
+  }
+  cachedSettings = merged
   return cachedSettings
 }
 
@@ -221,7 +241,8 @@ function applyCaptureProtection(enabled: boolean): void {
 /** Re-apply only the stacking layer (cheap); called on a timer so security tools cannot keep the widget buried. */
 function applyWidgetTopmostLayer(): void {
   if (!widgetWindow || widgetWindow.isDestroyed()) return
-  if (loadSettings().stealthOverlay) {
+  // 'screen-saver' always-on-top level is macOS-only; Windows uses default topmost.
+  if (loadSettings().stealthOverlay && isMac) {
     widgetWindow.setAlwaysOnTop(true, 'screen-saver', 1)
   } else {
     widgetWindow.setAlwaysOnTop(true)
@@ -273,8 +294,9 @@ function resolveAppIconPath(): string | null {
 
 function createTray(): void {
   const iconPath = resolveAppIconPath()
+  const trayIconSize = isWin ? 16 : 18
   const icon = iconPath
-    ? nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 })
+    ? nativeImage.createFromPath(iconPath).resize({ width: trayIconSize, height: trayIconSize })
     : nativeImage.createEmpty()
   tray = new Tray(icon)
   tray.setToolTip('Velora')
@@ -302,17 +324,26 @@ function createTray(): void {
 function createMainWindow(): void {
   const iconPath = resolveAppIconPath()
 
+  const macChrome: Electron.BrowserWindowConstructorOptions = {
+    titleBarStyle: 'hiddenInset',
+    transparent: true,
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
+  }
+  const winChrome: Electron.BrowserWindowConstructorOptions = {
+    frame: true,
+    transparent: false,
+    backgroundColor: '#09090b',
+  }
+
   mainWindow = new BrowserWindow({
     width: 1060,
     height: 740,
     minWidth: 720,
     minHeight: 520,
     title: 'Velora',
-    titleBarStyle: 'hiddenInset',
-    transparent: true,
+    ...(isMac ? macChrome : winChrome),
     hasShadow: true,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
     icon: iconPath ?? undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -338,6 +369,12 @@ function createMainWindow(): void {
 }
 
 function createWidgetWindow(): void {
+  const macWidgetChrome: Electron.BrowserWindowConstructorOptions = {
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
+    roundedCorners: true,
+  }
+
   widgetWindow = new BrowserWindow({
     width: 680,
     height: 560,
@@ -352,9 +389,8 @@ function createWidgetWindow(): void {
     resizable: true,
     show: false,
     skipTaskbar: true,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
-    roundedCorners: true,
+    backgroundColor: '#00000000',
+    ...(isMac ? macWidgetChrome : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -377,10 +413,27 @@ function createWidgetWindow(): void {
 
   // Only hide on blur if not currently being resized
   let isResizing = false
+  let blurHideTimer: ReturnType<typeof setTimeout> | null = null
+  const clearBlurHideTimer = (): void => {
+    if (blurHideTimer !== null) {
+      clearTimeout(blurHideTimer)
+      blurHideTimer = null
+    }
+  }
   widgetWindow.on('will-resize', () => { isResizing = true })
   widgetWindow.on('resize', () => { setTimeout(() => { isResizing = false }, 200) })
+  widgetWindow.on('focus', () => { clearBlurHideTimer() })
   widgetWindow.on('blur', () => {
-    if (!isResizing) widgetWindow?.hide()
+    if (isResizing) return
+    clearBlurHideTimer()
+    // Windows often fires blur/focus races when showing the widget; debounce hide.
+    const delay = isWin ? 280 : 120
+    blurHideTimer = setTimeout(() => {
+      blurHideTimer = null
+      if (!widgetWindow || widgetWindow.isDestroyed()) return
+      if (widgetWindow.isFocused()) return
+      widgetWindow.hide()
+    }, delay)
   })
 }
 
@@ -396,40 +449,77 @@ function createWindow(): void {
 
 // ─── Shortcuts ────────────────────────────────────────────────────────────────
 
-let currentWidgetShortcut = 'Alt+Space'
-let currentLiveHelperShortcut = 'CommandOrControl+Shift+H'
+let registeredWidgetShortcut = ''
+let registeredLiveHelperShortcut = ''
+
+function onWidgetShortcut(): void {
+  if (!widgetWindow) return
+  if (widgetWindow.isVisible()) { widgetWindow.hide() }
+  else { widgetWindow.show(); widgetWindow.focus() }
+}
+
+async function onLiveHelperShortcut(): Promise<void> {
+  if (widgetWindow && !widgetWindow.isVisible()) {
+    widgetWindow.show()
+    widgetWindow.focus()
+  }
+  const target = widgetWindow ?? mainWindow
+  if (!target) return
+  try {
+    const dataUrl = await captureScreen()
+    target.webContents.send('velora:shortcut', { action: 'live-helper', imageDataUrl: dataUrl })
+  } catch (e) { console.error('[velora] Live Helper capture error:', e) }
+}
 
 function registerWidgetShortcut(shortcut: string): void {
-  if (currentWidgetShortcut) globalShortcut.unregister(currentWidgetShortcut)
-  const ok = globalShortcut.register(shortcut, () => {
-    if (!widgetWindow) return
-    if (widgetWindow.isVisible()) { widgetWindow.hide() }
-    else { widgetWindow.show(); widgetWindow.focus() }
-  })
-  if (ok) currentWidgetShortcut = shortcut
+  const previous = registeredWidgetShortcut
+  if (previous) globalShortcut.unregister(previous)
+  const ok = globalShortcut.register(shortcut, onWidgetShortcut)
+  if (ok) {
+    registeredWidgetShortcut = shortcut
+    return
+  }
+  console.error('[velora] Failed to register widget shortcut:', shortcut)
+  if (previous && globalShortcut.register(previous, onWidgetShortcut)) {
+    registeredWidgetShortcut = previous
+    return
+  }
+  const fb = defaultWidgetShortcut()
+  if (globalShortcut.register(fb, onWidgetShortcut)) {
+    registeredWidgetShortcut = fb
+    saveSettings({ ...loadSettings(), widgetShortcut: fb })
+    console.warn('[velora] Fell back to widget shortcut:', fb)
+    return
+  }
+  registeredWidgetShortcut = ''
 }
 
 function registerLiveHelperShortcut(shortcut: string): void {
-  if (currentLiveHelperShortcut) globalShortcut.unregister(currentLiveHelperShortcut)
-  const ok = globalShortcut.register(shortcut, async () => {
-    // Show widget and send screen capture — renderer gates by tier
-    if (widgetWindow && !widgetWindow.isVisible()) {
-      widgetWindow.show()
-      widgetWindow.focus()
-    }
-    const target = widgetWindow ?? mainWindow
-    if (!target) return
-    try {
-      const dataUrl = await captureScreen()
-      target.webContents.send('velora:shortcut', { action: 'live-helper', imageDataUrl: dataUrl })
-    } catch (e) { console.error('[velora] Live Helper capture error:', e) }
-  })
-  if (ok) currentLiveHelperShortcut = shortcut
+  const previous = registeredLiveHelperShortcut
+  const fallback = 'CommandOrControl+Shift+H'
+  if (previous) globalShortcut.unregister(previous)
+  const ok = globalShortcut.register(shortcut, () => { void onLiveHelperShortcut() })
+  if (ok) {
+    registeredLiveHelperShortcut = shortcut
+    return
+  }
+  console.error('[velora] Failed to register live helper shortcut:', shortcut)
+  if (previous && globalShortcut.register(previous, () => { void onLiveHelperShortcut() })) {
+    registeredLiveHelperShortcut = previous
+    return
+  }
+  if (shortcut !== fallback && globalShortcut.register(fallback, () => { void onLiveHelperShortcut() })) {
+    registeredLiveHelperShortcut = fallback
+    saveSettings({ ...loadSettings(), liveHelperShortcut: fallback })
+    console.warn('[velora] Fell back to live helper shortcut:', fallback)
+    return
+  }
+  registeredLiveHelperShortcut = ''
 }
 
 function registerShortcuts(): void {
   const settings = loadSettings()
-  registerWidgetShortcut(settings.widgetShortcut || 'Alt+Space')
+  registerWidgetShortcut(settings.widgetShortcut || defaultWidgetShortcut())
   registerLiveHelperShortcut(settings.liveHelperShortcut || 'CommandOrControl+Shift+H')
 
   globalShortcut.register('CommandOrControl+Shift+V', () => {
@@ -472,8 +562,17 @@ async function captureScreen(): Promise<string> {
     thumbnailSize: { width: 1920, height: 1080 },
     fetchWindowIcons: false,
   })
-  if (!sources.length) throw new Error('No screen source found')
-  return sources[0].thumbnail.toDataURL()
+  if (!sources.length) {
+    const hint = isWin
+      ? ' Allow Velora in Settings → Privacy → Screen recording (or restart the app after enabling).'
+      : ''
+    throw new Error(`No screen source found.${hint}`)
+  }
+  const entire = sources.find((s) => /entire|whole\s*screen|full\s*desktop/i.test(s.name))
+    ?? sources.find((s) => /^screen\s*1$/i.test(s.name.trim()))
+    ?? sources.find((s) => /^display\s*1$/i.test(s.name.trim()))
+    ?? sources[0]
+  return entire.thumbnail.toDataURL()
 }
 
 // ─── AI API calls ─────────────────────────────────────────────────────────────
@@ -735,9 +834,10 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('velora:set-widget-shortcut', (_, shortcut: string) => {
-    const next = { ...loadSettings(), widgetShortcut: shortcut }
+    const normalized = normalizeWidgetShortcutForOs(shortcut)
+    const next = { ...loadSettings(), widgetShortcut: normalized }
     saveSettings(next)
-    registerWidgetShortcut(shortcut)
+    registerWidgetShortcut(normalized)
     return next
   })
 

@@ -1000,7 +1000,7 @@ function App() {
           <div className="flex items-center gap-2.5" style={appRegionNoDrag}>
             <div className="velora-logo-badge">
               <div className="velora-logo-badge-inner">
-                <img src="/android-chrome-192x192.png" alt="Velora" className="h-5 w-5 object-contain" />
+                <img src="./android-chrome-192x192.png" alt="Velora" className="h-5 w-5 object-contain" />
               </div>
             </div>
             <span className="text-sm font-bold velora-logo-gradient">Velora</span>
@@ -1792,8 +1792,10 @@ function App() {
       <div className="velora-bg-blur velora-bg-blur-a" />
       <div className="velora-bg-blur velora-bg-blur-b" />
 
-      {/* Drag handle / title bar */}
-      <div className="h-10 w-full shrink-0 z-10" style={appRegionDrag} />
+      {/* macOS: frameless inset title bar — custom drag strip. Windows: native frame; strip would double chrome. */}
+      {typeof window !== 'undefined' && window.velora?.platform !== 'win32' && (
+        <div className="h-10 w-full shrink-0 z-10" style={appRegionDrag} />
+      )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden z-10">
         {!sidebarOpen && (
@@ -1801,7 +1803,7 @@ function App() {
             type="button"
             aria-label="Show sidebar"
             title="Show sidebar"
-            className="velora-sidebar-reveal flex w-10 shrink-0 flex-col items-center border-r border-black/[0.06] dark:border-white/[0.08] bg-[color-mix(in_srgb,var(--surface-soft)_80%,transparent)] pt-12 transition-colors hover:bg-[color-mix(in_srgb,var(--accent-blue)_12%,transparent)]"
+            className={`velora-sidebar-reveal flex w-10 shrink-0 flex-col items-center border-r border-black/[0.06] dark:border-white/[0.08] bg-[color-mix(in_srgb,var(--surface-soft)_80%,transparent)] transition-colors hover:bg-[color-mix(in_srgb,var(--accent-blue)_12%,transparent)] ${typeof window !== 'undefined' && window.velora?.platform === 'win32' ? 'pt-3' : 'pt-12'}`}
             style={appRegionNoDrag}
             onClick={() => setSidebarOpen(true)}
           >
@@ -1818,7 +1820,7 @@ function App() {
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="velora-logo-badge shrink-0">
                   <div className="velora-logo-badge-inner">
-                    <img src="/android-chrome-192x192.png" alt="Velora" className="h-6 w-6 object-contain" />
+                    <img src="./android-chrome-192x192.png" alt="Velora" className="h-6 w-6 object-contain" />
                   </div>
                 </div>
                 <div className="min-w-0">

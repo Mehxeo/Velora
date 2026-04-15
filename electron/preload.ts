@@ -6,6 +6,9 @@ type MultiAIResponse = { gpt: string; claude: string; gemini: string }
 type ApiKeys = { openai?: string; anthropic?: string; gemini?: string; deepseek?: string }
 
 contextBridge.exposeInMainWorld('velora', {
+  /** Main-process platform (`win32`, `darwin`, …) — use for OS-specific UI. */
+  platform: process.platform,
+
   // Window
   togglePanel: () => ipcRenderer.invoke('velora:toggle-panel'),
   getWindowState: () => ipcRenderer.invoke('velora:get-window-state'),

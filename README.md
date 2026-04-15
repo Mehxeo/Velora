@@ -25,7 +25,7 @@ That page loads the **latest GitHub Release** and links directly to each install
 
 **macOS (no warning):** Installers built with a **Developer ID** certificate and **notarization** in GitHub Actions (repository secrets `MAC_CERTS`, `MAC_CERTS_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` or `APPLE_ID_PASSWORD`, `APPLE_TEAM_ID`) avoid that prompt for most users.
 
-**Windows:** If SmartScreen appears, use **More info** → **Run anyway** (strongly reduced when the app is signed with an Authenticode certificate).
+**Windows:** If SmartScreen appears, use **More info** → **Run anyway** (strongly reduced when the app is signed with an Authenticode certificate). The default **widget** hotkey is **Ctrl+Shift+Space** (not Alt+Space, which Windows reserves). If screen capture fails, allow Velora under **Settings → Privacy → Screen recording** (wording varies by Windows version).
 
 **Updates:** Installed builds use `electron-updater` and check GitHub Releases for new versions.
 

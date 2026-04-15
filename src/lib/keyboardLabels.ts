@@ -1,5 +1,8 @@
 /** Renderer-only: detect macOS for shortcut labels (Option vs Alt, ⌘ vs Ctrl). */
 export function isMacOSClient(): boolean {
+  if (typeof window !== 'undefined' && window.velora?.platform) {
+    return window.velora.platform === 'darwin'
+  }
   if (typeof navigator === 'undefined') return false
   return /Mac|iPhone|iPod|iPad/i.test(navigator.platform ?? '')
 }
