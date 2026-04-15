@@ -1,6 +1,6 @@
 # Velora
 
-**Velora** is a cross-platform desktop app (Electron + React) that helps you understand what’s on your screen: capture, chat with AI models, and use a compact floating widget with global shortcuts.
+**Velora** is a desktop app for **Windows and macOS** (Electron + React) that helps you understand what’s on your screen: capture, chat with AI models, and use a compact floating widget with global shortcuts.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-veloraapp.xyz-6366f1)](https://veloraapp.xyz)
@@ -9,7 +9,7 @@
 
 ## Install
 
-**Download installers (pick Windows / macOS / Linux):**
+**Download installers (Windows or macOS):**
 
 ### [Download page (GitHub Pages)](https://mehxeo.github.io/velora/)
 
@@ -17,12 +17,11 @@ That page loads the **latest GitHub Release** and links directly to each install
 
 | Platform | Typical file |
 |----------|----------------|
-| macOS (Apple Silicon) | `Velora-*-mac-arm64.dmg` |
-| macOS (Intel) | `Velora-*-mac-x64.dmg` |
+| macOS (Apple Silicon) | `Velora-*-mac-arm64.dmg` or `.zip` |
+| macOS (Intel) | `Velora-*-mac-x64.dmg` or `.zip` |
 | Windows | `Velora-*-win-x64.exe` (NSIS installer) |
-| Linux | `Velora-*-linux-x64.AppImage` |
 
-**macOS:** If Gatekeeper blocks the app the first time, right-click the app → **Open**, or use **System Settings → Privacy & Security → Open Anyway**.
+**macOS:** The first launch must be **Open** (right-click the app or the copy from the DMG) or **Open Anyway** in **System Settings → Privacy & Security**. If macOS says the app is **damaged** after a browser download, run `xattr -dr com.apple.quarantine /path/to/Velora.app`, or use the **`.zip`** asset, unzip, then open from Finder.
 
 **Windows:** If SmartScreen appears, use **More info** → **Run anyway** (strongly reduced when the app is signed with an Authenticode certificate).
 

@@ -364,7 +364,9 @@ function createWidgetWindow(): void {
   })
 
   if (isDev) { widgetWindow.loadURL('http://localhost:5173/#widget') }
-  else { widgetWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}#widget`) }
+  else {
+    widgetWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: 'widget' })
+  }
 
   widgetWindow.on('closed', () => {
     stopWidgetTopmostPin()

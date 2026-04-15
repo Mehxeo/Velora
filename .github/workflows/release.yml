@@ -80,12 +80,11 @@ jobs:
 
             | Platform | File |
             |----------|------|
-            | macOS (Apple Silicon) | `Velora-*-mac-arm64.dmg` |
-            | macOS (Intel) | `Velora-*-mac-x64.dmg` |
+            | macOS (Apple Silicon) | `Velora-*-mac-arm64.dmg` (or `.zip`) |
+            | macOS (Intel) | `Velora-*-mac-x64.dmg` (or `.zip`) |
             | Windows | `Velora-*-win-x64.exe` |
-            | Linux | `Velora-*-linux-x64.AppImage` |
 
-            **First-time install on macOS:** If Gatekeeper blocks the app, right-click → Open, or go to System Settings → Privacy & Security → Open Anyway.
+            **First-time install on macOS:** Right-click the app → **Open** the first time, or use **System Settings → Privacy & Security → Open Anyway**. If macOS shows **“damaged”** after download, remove quarantine: `xattr -dr com.apple.quarantine /path/to/Velora.app` (or re-download after updating to the latest release).
 
             **First-time install on Windows:** If SmartScreen shows a warning, click "More info" → "Run anyway".
 
@@ -153,7 +152,9 @@ jobs:
             npx electron-builder --mac --publish always
           else
             export CSC_IDENTITY_AUTO_DISCOVERY=false
-            npx electron-builder --mac --publish always --config.mac.identity=null --config.mac.hardenedRuntime=false
+            # Ad-hoc codesign ("-") keeps the bundle internally consistent for Gatekeeper.
+            # Without a Developer ID cert, users still confirm first launch (Open / Open Anyway).
+            npx electron-builder --mac --publish always --config.mac.identity="-"
           fi
 
   # ── Windows build ────────────────────────────────────────────────────────
@@ -202,32 +203,3 @@ jobs:
             sleep 90
           done
 
-  # ── Linux build ──────────────────────────────────────────────────────────
-  build-linux:
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.create-release.outputs.git_ref }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VELORA_BUILTIN_DEEPSEEK_KEY: ${{ secrets.VELORA_BUILTIN_DEEPSEEK_KEY }}
-          VELORA_BUILTIN_GEMINI_KEY: ${{ secrets.VELORA_BUILTIN_GEMINI_KEY }}
-        run: npm run build
-
-      - name: Package & publish (linux)
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npx electron-builder --linux --publish always

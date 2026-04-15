@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Download Velora</title>
-    <meta name="description" content="Download Velora — desktop AI assistant for Windows, macOS, and Linux." />
+    <meta name="description" content="Download Velora — desktop AI assistant for Windows and macOS." />
     <style>
       :root {
         --bg: #0c0f14;
@@ -97,7 +97,9 @@
         <a href="https://github.com/Mehxeo/velora#configuration-optional" style="color: var(--accent)">README</a>.
       </p>
       <p class="hint">
-        <strong>macOS:</strong> If Gatekeeper blocks the app, right-click → Open once.<br />
+        <strong>macOS:</strong> Right-click → <strong>Open</strong> the first time, or use <strong>System Settings → Privacy & Security → Open Anyway</strong>. If you see <strong>“damaged”</strong> after downloading, run:
+        <code style="color: var(--text); font-size: 0.78rem">xattr -dr com.apple.quarantine /path/to/Velora.app</code>
+        (or use the <strong>.zip</strong> from GitHub, unzip, then Open).<br />
         <strong>Windows:</strong> If SmartScreen warns, use “More info” → “Run anyway.”
       </p>
 
@@ -142,9 +144,10 @@
             var assets = rel.assets || []
             var tag = rel.tag_name || ''
             var win = pick(assets, /Velora-[\d.]+-win-x64\.exe$/i)
-            var macArm = pick(assets, /Velora-[\d.]+-mac-arm64\.dmg$/i)
-            var macX64 = pick(assets, /Velora-[\d.]+-mac-x64\.dmg$/i)
-            var appimage = pick(assets, /Velora-[\d.]+-linux-x64\.AppImage$/i)
+            var macArmDmg = pick(assets, /Velora-[\d.]+-mac-arm64\.dmg$/i)
+            var macArmZip = pick(assets, /Velora-[\d.]+-mac-arm64\.zip$/i)
+            var macX64Dmg = pick(assets, /Velora-[\d.]+-mac-x64\.dmg$/i)
+            var macX64Zip = pick(assets, /Velora-[\d.]+-mac-x64\.zip$/i)
 
             var html = '<div class="ver">Latest release: <strong>' + esc(tag) + '</strong></div><div class="row">'
             if (win) {
@@ -153,29 +156,35 @@
                 esc(win.browser_download_url) +
                 '">Download for Windows (x64)</a>'
             }
-            if (macArm) {
+            if (macArmDmg) {
               html +=
                 '<a class="btn mac" href="' +
-                esc(macArm.browser_download_url) +
-                '">Download for macOS (Apple Silicon)</a>'
+                esc(macArmDmg.browser_download_url) +
+                '">Download for macOS (Apple Silicon) — DMG</a>'
             }
-            if (macX64) {
+            if (macArmZip) {
+              html +=
+                '<a class="btn ghost" href="' +
+                esc(macArmZip.browser_download_url) +
+                '">macOS Apple Silicon — ZIP (if DMG is blocked)</a>'
+            }
+            if (macX64Dmg) {
               html +=
                 '<a class="btn macintel" href="' +
-                esc(macX64.browser_download_url) +
-                '">Download for macOS (Intel)</a>'
+                esc(macX64Dmg.browser_download_url) +
+                '">Download for macOS (Intel) — DMG</a>'
             }
-            if (appimage) {
+            if (macX64Zip) {
               html +=
-                '<a class="btn linux" href="' +
-                esc(appimage.browser_download_url) +
-                '">Download for Linux (AppImage)</a>'
+                '<a class="btn ghost" href="' +
+                esc(macX64Zip.browser_download_url) +
+                '">macOS Intel — ZIP (if DMG is blocked)</a>'
             }
             html +=
               '<a class="btn ghost" href="https://github.com/Mehxeo/velora/releases/latest">Open GitHub Releases (all assets)</a>'
             html += '</div>'
 
-            if (!win && !macArm && !macX64 && !appimage) {
+            if (!win && !macArmDmg && !macArmZip && !macX64Dmg && !macX64Zip) {
               html =
                 '<p class="err">No matching installers found in this release yet. Use GitHub Releases or check back after CI finishes publishing.</p>' +
                 '<div class="row"><a class="btn ghost" href="https://github.com/Mehxeo/velora/releases/latest">Open GitHub Releases</a></div>'

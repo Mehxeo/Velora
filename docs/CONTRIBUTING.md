@@ -45,9 +45,8 @@ Apply the SQL in `supabase/schema.sql` to your Supabase project if you use cloud
 |---------|----------|
 | `npm run dist:mac` | macOS (run on a Mac) |
 | `npm run dist:win` | Windows (run on Windows) |
-| `npm run dist:linux` | Linux AppImage |
 
-Unsigned builds may trigger Gatekeeper (macOS) or SmartScreen (Windows); see the main README for end-user workarounds.
+Unsigned builds may trigger Gatekeeper (macOS) or SmartScreen (Windows); see the main README for end-user workarounds. Release CI currently ships **macOS and Windows** only.
 
 ## Release builds (maintainers)
 
@@ -56,7 +55,7 @@ Releases are automated via `.github/workflows/release.yml` when you push a versi
 1. Bump `version` in `package.json`.
 2. Commit and push a tag: `git tag v1.2.3 && git push origin v1.2.3`.
 
-The workflow creates the GitHub Release and runs `electron-builder --publish always` on macOS, Windows, and Linux runners. Required secrets are documented in the workflow file header and in the main README.
+The workflow creates the GitHub Release and runs `electron-builder --publish always` on macOS and Windows runners. Required secrets are documented in the workflow file header and in the main README.
 
 ### CI note: Windows publish
 
@@ -64,7 +63,7 @@ GitHub asset uploads are large; `package.json` sets a longer `build.publish[].ti
 
 ## Public download page (GitHub Pages)
 
-The `docs/` folder includes `index.html`, a static page that calls the GitHub API and lists **Download** buttons for the latest release assets (Windows `.exe`, macOS `.dmg`, Linux `.AppImage`).
+The `docs/` folder includes `index.html`, a static page that calls the GitHub API and lists **Download** buttons for the latest release assets (Windows `.exe`, macOS `.dmg` and optional `.zip`).
 
 - Workflow: `.github/workflows/pages.yml` pushes `docs/` to the **`gh-pages`** branch using [peaceiris/actions-gh-pages](https://github.com/peaceiris/actions-gh-pages) (no separate Pages API token required).
 - **One-time setup:** After the first successful workflow run, open **Settings → Pages → Build and deployment** and set **Source** to **Deploy from a branch**, **Branch** `gh-pages`, folder **`/`** (root), then save. GitHub may also offer to enable this when `gh-pages` first appears.
