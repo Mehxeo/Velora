@@ -66,8 +66,8 @@ GitHub asset uploads are large; `package.json` sets a longer `build.publish[].ti
 
 The `docs/` folder includes `index.html`, a static page that calls the GitHub API and lists **Download** buttons for the latest release assets (Windows `.exe`, macOS `.dmg`, Linux `.AppImage`).
 
-- Workflow: `.github/workflows/pages.yml` deploys `docs/` to GitHub Pages on pushes to `main` that touch `docs/` or the workflow.
-- **One-time setup:** Repository **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+- Workflow: `.github/workflows/pages.yml` pushes `docs/` to the **`gh-pages`** branch using [peaceiris/actions-gh-pages](https://github.com/peaceiris/actions-gh-pages) (no separate Pages API token required).
+- **One-time setup:** After the first successful workflow run, open **Settings → Pages → Build and deployment** and set **Source** to **Deploy from a branch**, **Branch** `gh-pages`, folder **`/`** (root), then save. GitHub may also offer to enable this when `gh-pages` first appears.
 - Typical URL: `https://<user>.github.io/<repo>/` (for example `https://mehxeo.github.io/velora/`).
 
 ## Code layout

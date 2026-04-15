@@ -1,6 +1,8 @@
-# Serves docs/index.html as the public download page at:
-#   https://mehxeo.github.io/velora/
-# One-time repo setup: Settings → Pages → Build and deployment → Source: GitHub Actions
+# Serves docs/index.html at https://<user>.github.io/<repo>/
+#
+# Uses the gh-pages branch (no configure-pages / Actions-based Pages API).
+# One-time: Settings → Pages → Build and deployment → Source: Deploy from a branch
+#           Branch: gh-pages, folder: / (root). Save. Future pushes deploy automatically.
 name: Deploy download page
 
 on:
@@ -12,25 +14,21 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+
+      - name: Publish docs to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: docs
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          force_orphan: true

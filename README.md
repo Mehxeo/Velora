@@ -13,7 +13,7 @@
 
 ### [Download page (GitHub Pages)](https://mehxeo.github.io/velora/)
 
-That page loads the **latest GitHub Release** and links directly to each installer. If it is not deployed yet, use **[GitHub Releases](https://github.com/Mehxeo/velora/releases/latest)** or **[veloraapp.xyz](https://veloraapp.xyz)**.
+That page loads the **latest GitHub Release** and links directly to each installer. The site is published from the `gh-pages` branch (see `docs/CONTRIBUTING.md`). If the page is not live yet, use **[GitHub Releases](https://github.com/Mehxeo/velora/releases/latest)** or **[veloraapp.xyz](https://veloraapp.xyz)**.
 
 | Platform | Typical file |
 |----------|----------------|
