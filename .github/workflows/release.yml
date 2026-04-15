@@ -16,8 +16,9 @@
 #   MAC_CERTS                   base64-encoded .p12 certificate (Apple Developer ID)
 #   MAC_CERTS_PASSWORD          Password for MAC_CERTS
 #   APPLE_ID                    Apple ID email (notarization)
-#   APPLE_ID_PASSWORD           App-specific password (notarization)
-#   APPLE_TEAM_ID               Apple Developer Team ID
+#   APPLE_APP_SPECIFIC_PASSWORD Preferred: app-specific password for notarytool
+#   APPLE_ID_PASSWORD           Alias: same as app-specific password if the above is unset
+#   APPLE_TEAM_ID               Apple Developer Team ID (required for notarization)
 #   WIN_CERT                    base64-encoded .p12 (Windows Authenticode)
 #   WIN_CERT_PASSWORD           Password for WIN_CERT
 
@@ -84,7 +85,7 @@ jobs:
             | macOS (Intel) | `Velora-*-mac-x64.dmg` (or `.zip`) |
             | Windows | `Velora-*-win-x64.exe` |
 
-            **First-time install on macOS:** Right-click the app → **Open** the first time, or use **System Settings → Privacy & Security → Open Anyway**. If macOS shows **“damaged”** after download, remove quarantine: `xattr -dr com.apple.quarantine /path/to/Velora.app` (or re-download after updating to the latest release).
+            **First-time install on macOS:** If you see **“Apple could not verify…”** or **malware** wording, that is normal for builds that are not notarized yet — right-click **Velora** → **Open**, or **System Settings → Privacy & Security → Open Anyway** after one launch attempt. If macOS says **“damaged”**, run `xattr -dr com.apple.quarantine /path/to/Velora.app`.
 
             **First-time install on Windows:** If SmartScreen shows a warning, click "More info" → "Run anyway".
 
@@ -143,13 +144,26 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ -n "$MAC_CERTS_B64" ]; then
             export CSC_LINK="$MAC_CERTS_B64"
             export CSC_KEY_PASSWORD
-            export APPLE_ID APPLE_ID_PASSWORD APPLE_TEAM_ID
-            npx electron-builder --mac --publish always
+            export APPLE_ID APPLE_TEAM_ID
+            if [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+              export APPLE_APP_SPECIFIC_PASSWORD
+            elif [ -n "$APPLE_ID_PASSWORD" ]; then
+              export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_ID_PASSWORD"
+            fi
+            NOTARIZE_ARGS=""
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              NOTARIZE_ARGS='--config.mac.notarize=true'
+              echo "Notarization enabled (Developer ID + APPLE_ID + app password + TEAM_ID)."
+            else
+              echo "::notice::Notarization skipped — macOS may show Gatekeeper on first open until APPLE_* secrets are set."
+            fi
+            npx electron-builder --mac --publish always $NOTARIZE_ARGS
           else
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             # Ad-hoc codesign ("-") keeps the bundle internally consistent for Gatekeeper.

@@ -97,9 +97,9 @@
         <a href="https://github.com/Mehxeo/velora#configuration-optional" style="color: var(--accent)">README</a>.
       </p>
       <p class="hint">
-        <strong>macOS:</strong> Right-click → <strong>Open</strong> the first time, or use <strong>System Settings → Privacy & Security → Open Anyway</strong>. If you see <strong>“damaged”</strong> after downloading, run:
+        <strong>macOS:</strong> If you see <strong>“Apple could not verify…”</strong> / malware wording, that is Gatekeeper for <strong>unnotarized</strong> builds — <strong>Control-click Velora → Open → Open</strong>, or open once then use <strong>System Settings → Privacy & Security → Open Anyway</strong>. For <strong>“damaged”</strong>, run
         <code style="color: var(--text); font-size: 0.78rem">xattr -dr com.apple.quarantine /path/to/Velora.app</code>
-        (or use the <strong>.zip</strong> from GitHub, unzip, then Open).<br />
+        or use the <strong>.zip</strong>, unzip, then Open. A future release can be fully trusted after the project enables <strong>Developer ID + notarization</strong> in CI.<br />
         <strong>Windows:</strong> If SmartScreen warns, use “More info” → “Run anyway.”
       </p>
 

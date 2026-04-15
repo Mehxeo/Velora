@@ -21,7 +21,9 @@ That page loads the **latest GitHub Release** and links directly to each install
 | macOS (Intel) | `Velora-*-mac-x64.dmg` or `.zip` |
 | Windows | `Velora-*-win-x64.exe` (NSIS installer) |
 
-**macOS:** The first launch must be **Open** (right-click the app or the copy from the DMG) or **Open Anyway** in **System Settings → Privacy & Security**. If macOS says the app is **damaged** after a browser download, run `xattr -dr com.apple.quarantine /path/to/Velora.app`, or use the **`.zip`** asset, unzip, then open from Finder.
+**macOS (Gatekeeper):** If you see **“Apple could not verify Velora is free of malware…”**, that only means the build is not **notarized** by Apple (common for open-source releases until the maintainer configures signing secrets in CI). You can still run it: **Control-click (right-click) Velora → Open → Open**, or try once from Finder, then go to **System Settings → Privacy & Security** and click **Open Anyway** next to the blocked-app message. If macOS says **damaged** after download, run `xattr -dr com.apple.quarantine /path/to/Velora.app`, or unzip the **`.zip`** release and open from Finder.
+
+**macOS (no warning):** Installers built with a **Developer ID** certificate and **notarization** in GitHub Actions (repository secrets `MAC_CERTS`, `MAC_CERTS_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` or `APPLE_ID_PASSWORD`, `APPLE_TEAM_ID`) avoid that prompt for most users.
 
 **Windows:** If SmartScreen appears, use **More info** → **Run anyway** (strongly reduced when the app is signed with an Authenticode certificate).
 
