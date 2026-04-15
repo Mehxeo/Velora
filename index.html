@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Download Velora</title>
+    <meta name="description" content="Download Velora — desktop AI assistant for Windows and macOS." />
+    <style>
+      :root {
+        --bg: #0c0f14;
+        --card: #151a22;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #e8eaef;
+        --muted: #8b93a7;
+        --accent: #3b82f6;
+        --accent2: #10b981;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: radial-gradient(1200px 600px at 10% -10%, rgba(59, 130, 246, 0.15), transparent),
+          radial-gradient(800px 400px at 90% 0%, rgba(16, 185, 129, 0.12), transparent), var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      .wrap { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+      h1 {
+        font-size: 1.75rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.5rem;
+        background: linear-gradient(90deg, #60a5fa, #34d399);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1.25rem 1.35rem;
+        margin-bottom: 1rem;
+      }
+      .ver {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      .ver strong { color: var(--text); font-family: ui-monospace, monospace; }
+      .row { display: flex; flex-direction: column; gap: 0.65rem; }
+      a.btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-decoration: none;
+        color: #fff;
+        border: 1px solid transparent;
+        transition: transform 0.12s ease, filter 0.12s ease;
+      }
+      a.btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+      a.win { background: linear-gradient(135deg, #2563eb, #0891b2); }
+      a.mac { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+      a.macintel { background: linear-gradient(135deg, #5b21b6, #6d28d9); }
+      a.linux { background: linear-gradient(135deg, #047857, #059669); }
+      a.ghost {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--text);
+      }
+      .hint { font-size: 0.8rem; color: var(--muted); margin-top: 1.25rem; line-height: 1.55; }
+      .err { color: #f87171; font-size: 0.85rem; margin-bottom: 0.75rem; }
+      .links { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); }
+      .links a { color: var(--accent); }
+      footer { margin-top: 2.5rem; font-size: 0.75rem; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Velora</h1>
+      <p class="sub">Desktop assistant for on-screen understanding. Choose your platform below.</p>
+
+      <div id="status" class="card">
+        <div id="loading">Loading latest release…</div>
+        <div id="content" style="display: none"></div>
+      </div>
+
+      <p class="hint">
+        After installing, open Velora and add your API keys in <strong>Settings</strong> (OpenAI, Anthropic, Gemini, or DeepSeek). Optional Supabase sign-in enables cloud sync — see the
+        <a href="https://github.com/Mehxeo/velora#configuration-optional" style="color: var(--accent)">README</a>.
+      </p>
+      <p class="hint">
+        <strong>macOS:</strong> If you see <strong>“Apple could not verify…”</strong> / malware wording, that is Gatekeeper for <strong>unnotarized</strong> builds — <strong>Control-click Velora → Open → Open</strong>, or open once then use <strong>System Settings → Privacy & Security → Open Anyway</strong>. For <strong>“damaged”</strong>, run
+        <code style="color: var(--text); font-size: 0.78rem">xattr -dr com.apple.quarantine /path/to/Velora.app</code>
+        or use the <strong>.zip</strong>, unzip, then Open. A future release can be fully trusted after the project enables <strong>Developer ID + notarization</strong> in CI.<br />
+        <strong>Windows:</strong> If SmartScreen warns, use “More info” → “Run anyway.”
+      </p>
+
+      <div class="links">
+        <a href="https://github.com/Mehxeo/velora/releases/latest">All files on GitHub Releases</a>
+        ·
+        <a href="https://veloraapp.xyz">veloraapp.xyz</a>
+      </div>
+
+      <footer>Open source — MIT License · <a href="https://github.com/Mehxeo/velora">Source code</a></footer>
+    </div>
+
+    <script>
+      (function () {
+        var API = 'https://api.github.com/repos/Mehxeo/velora/releases/latest'
+        var loading = document.getElementById('loading')
+        var content = document.getElementById('content')
+
+        function esc(s) {
+          var d = document.createElement('div')
+          d.textContent = s
+          return d.innerHTML
+        }
+
+        function pick(assets, re) {
+          for (var i = 0; i < assets.length; i++) {
+            var n = assets[i].name
+            if (/blockmap/i.test(n) || /uninstaller/i.test(n)) continue
+            if (re.test(n)) return assets[i]
+          }
+          return null
+        }
+
+        fetch(API)
+          .then(function (r) {
+            if (!r.ok) throw new Error('GitHub API: ' + r.status)
+            return r.json()
+          })
+          .then(function (rel) {
+            loading.style.display = 'none'
+            content.style.display = 'block'
+            var assets = rel.assets || []
+            var tag = rel.tag_name || ''
+            var win = pick(assets, /Velora-[\d.]+-win-x64\.exe$/i)
+            var macArmDmg = pick(assets, /Velora-[\d.]+-mac-arm64\.dmg$/i)
+            var macArmZip = pick(assets, /Velora-[\d.]+-mac-arm64\.zip$/i)
+            var macX64Dmg = pick(assets, /Velora-[\d.]+-mac-x64\.dmg$/i)
+            var macX64Zip = pick(assets, /Velora-[\d.]+-mac-x64\.zip$/i)
+
+            var html = '<div class="ver">Latest release: <strong>' + esc(tag) + '</strong></div><div class="row">'
+            if (win) {
+              html +=
+                '<a class="btn win" href="' +
+                esc(win.browser_download_url) +
+                '">Download for Windows (x64)</a>'
+            }
+            if (macArmDmg) {
+              html +=
+                '<a class="btn mac" href="' +
+                esc(macArmDmg.browser_download_url) +
+                '">Download for macOS (Apple Silicon) — DMG</a>'
+            }
+            if (macArmZip) {
+              html +=
+                '<a class="btn ghost" href="' +
+                esc(macArmZip.browser_download_url) +
+                '">macOS Apple Silicon — ZIP (if DMG is blocked)</a>'
+            }
+            if (macX64Dmg) {
+              html +=
+                '<a class="btn macintel" href="' +
+                esc(macX64Dmg.browser_download_url) +
+                '">Download for macOS (Intel) — DMG</a>'
+            }
+            if (macX64Zip) {
+              html +=
+                '<a class="btn ghost" href="' +
+                esc(macX64Zip.browser_download_url) +
+                '">macOS Intel — ZIP (if DMG is blocked)</a>'
+            }
+            html +=
+              '<a class="btn ghost" href="https://github.com/Mehxeo/velora/releases/latest">Open GitHub Releases (all assets)</a>'
+            html += '</div>'
+
+            if (!win && !macArmDmg && !macArmZip && !macX64Dmg && !macX64Zip) {
+              html =
+                '<p class="err">No matching installers found in this release yet. Use GitHub Releases or check back after CI finishes publishing.</p>' +
+                '<div class="row"><a class="btn ghost" href="https://github.com/Mehxeo/velora/releases/latest">Open GitHub Releases</a></div>'
+            }
+
+            content.innerHTML = html
+          })
+          .catch(function () {
+            loading.innerHTML =
+              '<p class="err">Could not load release info (network or API limit). Use the button below.</p>' +
+              '<div class="row"><a class="btn ghost" href="https://github.com/Mehxeo/velora/releases/latest">Download from GitHub Releases</a></div>'
+          })
+      })()
+    </script>
+  </body>
+</html>
