@@ -10,7 +10,7 @@ on:
         description: Native targets to test
         type: choice
         default: all
-        options: [all, macs, windows-arm]
+        options: [all, macs, windows, windows-arm]
       probe_only:
         description: Verify native runners without downloading candidate
         type: boolean
@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON(inputs.platforms == 'macs' && '["macos-15-intel","macos-15"]' || inputs.platforms == 'windows-arm' && '["windows-11-arm"]' || '["macos-15-intel","macos-15","windows-2025","windows-11-arm"]') }}
+        include: ${{ fromJSON(inputs.platforms == 'macs' && '[{"runner":"macos-15-intel","installer":"arch"},{"runner":"macos-15","installer":"arch"}]' || inputs.platforms == 'windows' && '[{"runner":"windows-2025","installer":"arch"},{"runner":"windows-2025","installer":"universal"},{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]' || inputs.platforms == 'windows-arm' && '[{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]' || '[{"runner":"macos-15-intel","installer":"arch"},{"runner":"macos-15","installer":"arch"},{"runner":"windows-2025","installer":"arch"},{"runner":"windows-2025","installer":"universal"},{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:
@@ -42,4 +42,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_URLS: ${{ secrets.ALPHA82_ACCEPTANCE_DOWNLOADS }}
           CANDIDATE_TAG: ${{ inputs.candidate }}
+          INSTALLER_KIND: ${{ matrix.installer }}
         run: node scripts/acceptance/native.cjs

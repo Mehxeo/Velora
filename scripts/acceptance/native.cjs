@@ -2,6 +2,9 @@
 const {execFileSync,spawnSync}=require('node:child_process');
 const fs=require('node:fs');const path=require('node:path');const os=require('node:os');const crypto=require('node:crypto');const assert=require('node:assert/strict');
 const tag=process.env.CANDIDATE_TAG;
+const installerKind=process.env.INSTALLER_KIND||'arch';
+assert(['arch','universal'].includes(installerKind));
+const windowsCandidate=`Velora-Setup-3.0.0-alpha.82${installerKind==='universal'?'':'-'+process.arch}.exe`;
 assert.equal(tag,'v3.0.0-alpha.82','This acceptance suite is pinned to the alpha.82 candidate');
 assert.equal(process.env.GITHUB_ACTIONS,'true','Run installation tests only on disposable CI runners');
 const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-')));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
@@ -35,7 +38,7 @@ let manifest;
  download(tag,candidate,'ARTIFACTS.json');manifest=JSON.parse(fs.readFileSync(path.join(candidate,'ARTIFACTS.json')));
  assert.equal(manifest.desktopSourceCommit,'4cdfa26af76f8115b27ba563433ffe04d5dee2cf');
  // Fetch all expiring URLs before time-consuming install/UI tests.
- const artifactNames=process.platform==='darwin'?[`Velora-3.0.0-alpha.82${process.arch==='arm64'?'-arm64':''}-mac.zip`,`Velora-3.0.0-alpha.82${process.arch==='arm64'?'-arm64':''}.dmg`,'latest-mac.yml',`velora-cli-macos-${process.arch}.zip`]:[`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`,'velora-cli-windows-x64.zip'];
+ const artifactNames=process.platform==='darwin'?[`Velora-3.0.0-alpha.82${process.arch==='arm64'?'-arm64':''}-mac.zip`,`Velora-3.0.0-alpha.82${process.arch==='arm64'?'-arm64':''}.dmg`,'latest-mac.yml',`velora-cli-macos-${process.arch}.zip`]:[windowsCandidate,'velora-cli-windows-x64.zip'];
  for(const name of artifactNames){download(tag,candidate,name);verify(name);}
 
  const profile=path.join(root,'profile');const fixture=path.join(root,'fixture.json');let executable;
@@ -61,7 +64,7 @@ let manifest;
  }else if(process.platform==='win32'){
   // Published alpha.81 ARM NSIS cannot decode its ARM64 payload (upstream #9983).
   // Use the supported alpha.81 x64 installation on ARM, then verify a real native ARM upgrade.
-  const old=`Velora-Setup-3.0.0-alpha.81-x64.exe`;const installer=`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`;
+  const old=`Velora-Setup-3.0.0-alpha.81-x64.exe`;const installer=windowsCandidate;
   download('v3.0.0-alpha.81',previous,old);download(tag,candidate,installer);verify(installer);
   const installation=path.join(root,'installation');windowsInstall(path.join(previous,old),installation);executable=path.join(installation,'Velora.exe');if(!fs.existsSync(executable)){
     const scan=run('pwsh',['-NoProfile','-Command',`Get-ChildItem -LiteralPath '${installation}', '${path.join(process.env.LOCALAPPDATA,'Programs')}' -Filter Velora.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName | ConvertTo-Json`]);
@@ -82,7 +85,7 @@ let manifest;
  const cliName=process.platform==='darwin'?`velora-cli-macos-${process.arch}`:'velora-cli-windows-x64';download(tag,candidate,cliName+'.zip');verify(cliName+'.zip');const cliDir=path.join(root,'cli');fs.mkdirSync(cliDir);
  if(process.platform==='darwin')run('ditto',['-x','-k',path.join(candidate,cliName+'.zip'),cliDir]);else run('tar',['-xf',path.join(candidate,cliName+'.zip'),'-C',cliDir]);
  const cliFile=path.join(cliDir,cliName+(process.platform==='win32'?'.exe':''));const version=run(cliFile,['--version']).trim();assert(version.includes('3.0.0-alpha.82'));
- const result={candidate:tag,source:manifest.desktopSourceCommit,platform:process.platform,arch:process.arch,os:os.release(),previousArchitecture:process.platform==='win32'?'x64':process.arch,nativeInstallation:'passed',upgradeData:'passed',packagedAcceptance:'passed',cliVersion:version,limits:['No live team accounts or provider journeys run by this workflow','Windows artifacts are unsigned']};
+ const result={candidate:tag,source:manifest.desktopSourceCommit,platform:process.platform,arch:process.arch,os:os.release(),installerKind,previousArchitecture:process.platform==='win32'?'x64':process.arch,nativeInstallation:'passed',upgradeData:'passed',packagedAcceptance:'passed',cliVersion:version,limits:['No live team accounts or provider journeys run by this workflow','Windows artifacts are unsigned']};
  console.log('NATIVE_ACCEPTANCE_RESULT '+JSON.stringify(result));
  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'```json\n'+JSON.stringify(result,null,2)+'\n```\n');
 })().catch(e=>{console.error(e);process.exitCode=1;});
