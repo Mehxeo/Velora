@@ -7,7 +7,15 @@ assert.equal(process.env.GITHUB_ACTIONS,'true','Run installation tests only on d
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-'));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
 fs.mkdirSync(candidate);fs.mkdirSync(previous);const evidence=path.join(root,'evidence');fs.mkdirSync(evidence);
 function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return execFileSync(cmd,args,{encoding:'utf8',stdio:'pipe',timeout:180000,...options});}
-function download(release,dir,name){run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});}
+function download(release,dir,name){
+ if(release!==tag)return run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});
+ const url=JSON.parse(process.env.CANDIDATE_URLS||'{}')[name];assert(url,'Missing temporary download link for '+name);
+ assert.equal(new URL(url).hostname,'release-assets.githubusercontent.com');
+ console.log('Download candidate:',name);
+ // Send the temporary bearer URL through stdin, never command arguments/logs.
+ const code=`const fs=require('node:fs');const {Readable}=require('node:stream');const {pipeline}=require('node:stream/promises');(async()=>{const {url,file}=JSON.parse(fs.readFileSync(0,'utf8'));const r=await fetch(url,{signal:AbortSignal.timeout(240000)});if(!r.ok)throw Error('Download HTTP '+r.status);await pipeline(Readable.fromWeb(r.body),fs.createWriteStream(file));})().catch(()=>process.exit(1));`;
+ try{execFileSync(process.execPath,['-e',code],{input:JSON.stringify({url,file:path.join(dir,name)}),stdio:['pipe','pipe','pipe'],timeout:300000});}catch{throw Error('Temporary candidate download failed: '+name);}
+}
 function test(name,args){const out=path.join(evidence,name+'.json');try{const output=run(process.execPath,[path.join(__dirname,name+'.cjs'),...args(out)],{timeout:240000});console.log(output);}catch(e){console.error(e.stdout?.toString(),e.stderr?.toString());throw e;}finally{if(fs.existsSync(out))console.log(fs.readFileSync(out,'utf8'));if(fs.existsSync(out+'.log'))console.log(fs.readFileSync(out+'.log','utf8').slice(-14000));}}
 function verify(name){const expected=manifest.artifacts.find(a=>a.name===name||a.name==='cli/'+name);assert(expected,'Missing pinned hash '+name);const bytes=fs.readFileSync(path.join(candidate,name));assert.equal(bytes.length,expected.size);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),expected.sha256);}
 function windowsInstall(file,destination){const script='$p=Start-Process -FilePath $args[0] -ArgumentList @("/S",("/D="+$args[1])) -PassThru -Wait; exit $p.ExitCode';const scriptFile=path.join(root,'install.ps1');fs.writeFileSync(scriptFile,script);run('pwsh',['-NoProfile','-File',scriptFile,file,destination]);}

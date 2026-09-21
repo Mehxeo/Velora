@@ -35,5 +35,6 @@ jobs:
         if: ${{ !inputs.probe_only }}
         env:
           GH_TOKEN: ${{ github.token }}
+          CANDIDATE_URLS: ${{ secrets.ALPHA82_ACCEPTANCE_DOWNLOADS }}
           CANDIDATE_TAG: ${{ inputs.candidate }}
         run: node scripts/acceptance/native.cjs
