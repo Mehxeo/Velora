@@ -1,0 +1,56 @@
+// Tests only already-built artifacts. No source checkout, signing secrets, or production credentials.
+const {execFileSync,spawnSync}=require('node:child_process');
+const fs=require('node:fs');const path=require('node:path');const os=require('node:os');const crypto=require('node:crypto');const assert=require('node:assert/strict');
+const tag=process.env.CANDIDATE_TAG;
+assert.equal(tag,'v3.0.0-alpha.82','This acceptance suite is pinned to the alpha.82 candidate');
+assert.equal(process.env.GITHUB_ACTIONS,'true','Run installation tests only on disposable CI runners');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-'));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
+fs.mkdirSync(candidate);fs.mkdirSync(previous);const evidence=path.join(root,'evidence');fs.mkdirSync(evidence);
+function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return execFileSync(cmd,args,{encoding:'utf8',stdio:'pipe',timeout:180000,...options});}
+function download(release,dir,name){run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});}
+function test(name,args){const out=path.join(evidence,name+'.json');try{const output=run(process.execPath,[path.join(__dirname,name+'.cjs'),...args(out)],{timeout:240000});console.log(output);}catch(e){console.error(e.stdout?.toString(),e.stderr?.toString());throw e;}finally{if(fs.existsSync(out))console.log(fs.readFileSync(out,'utf8'));if(fs.existsSync(out+'.log'))console.log(fs.readFileSync(out+'.log','utf8').slice(-14000));}}
+function verify(name){const expected=manifest.artifacts.find(a=>a.name===name||a.name==='cli/'+name);assert(expected,'Missing pinned hash '+name);const bytes=fs.readFileSync(path.join(candidate,name));assert.equal(bytes.length,expected.size);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),expected.sha256);}
+function windowsInstall(file,destination){const script='$p=Start-Process -FilePath $args[0] -ArgumentList @("/S",("/D="+$args[1])) -PassThru -Wait; exit $p.ExitCode';const scriptFile=path.join(root,'install.ps1');fs.writeFileSync(scriptFile,script);run('pwsh',['-NoProfile','-File',scriptFile,file,destination]);}
+let manifest;
+(async()=>{
+ download(tag,candidate,'ARTIFACTS.json');manifest=JSON.parse(fs.readFileSync(path.join(candidate,'ARTIFACTS.json')));
+ assert.equal(manifest.desktopSourceCommit,'4cdfa26af76f8115b27ba563433ffe04d5dee2cf');
+ const profile=path.join(root,'profile');const fixture=path.join(root,'fixture.json');let executable;
+ if(process.platform==='darwin'){
+  const suffix=process.arch==='arm64'?'-arm64':'';
+  const old=`Velora-3.0.0-alpha.81${suffix}-mac.zip`;download('v3.0.0-alpha.81',previous,old);
+  const installation=path.join(root,'installation');fs.mkdirSync(installation);
+  run('ditto',['-x','-k',path.join(previous,old),installation]);
+  const bundle=path.join(installation,'Velora.app');executable=path.join(bundle,'Contents/MacOS/Velora');
+  run('codesign',['--verify','--deep','--strict',bundle]);
+  test('verify-packaged-data-upgrade',out=>[executable,out,'seed',profile,fixture]);
+  for(const name of [`Velora-3.0.0-alpha.82${suffix}-mac.zip`,`Velora-3.0.0-alpha.82${suffix}.dmg`,'latest-mac.yml']){download(tag,candidate,name);verify(name);}
+  test('verify-squirrel-upgrade',out=>[executable,out,candidate]);
+  process.env.VELORA_ACCEPTANCE_METHOD='Native Squirrel download, installation and automatic relaunch; same isolated fixture profile';
+  test('verify-packaged-data-upgrade',out=>[executable,out,'verify',profile,fixture]);
+  // Also exercise the DMG installer, staple, signature, and launch path.
+  const mount=path.join(root,'mount');fs.mkdirSync(mount);
+  run('xcrun',['stapler','validate',path.join(candidate,`Velora-3.0.0-alpha.82${suffix}.dmg`)]);
+  run('hdiutil',['attach',path.join(candidate,`Velora-3.0.0-alpha.82${suffix}.dmg`),'-readonly','-nobrowse','-mountpoint',mount]);
+  const fresh=path.join(root,'fresh','Velora.app');run('ditto',[path.join(mount,'Velora.app'),fresh]);run('hdiutil',['detach',mount]);
+  run('codesign',['--verify','--deep','--strict',fresh]);run('spctl',['--assess','--type','execute','--verbose',fresh]);
+  test('verify-packaged-combined',out=>[path.join(fresh,'Contents/MacOS/Velora'),out]);
+ }else if(process.platform==='win32'){
+  const old=`Velora-Setup-3.0.0-alpha.81-${process.arch}.exe`;const installer=`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`;
+  download('v3.0.0-alpha.81',previous,old);download(tag,candidate,installer);verify(installer);
+  const installation=path.join(root,'installation');windowsInstall(path.join(previous,old),installation);executable=path.join(installation,'Velora.exe');assert(fs.existsSync(executable),'NSIS did not install alpha.81');
+  test('verify-packaged-data-upgrade',out=>[executable,out,'seed',profile,fixture]);
+  windowsInstall(path.join(candidate,installer),installation);
+  process.env.VELORA_ACCEPTANCE_METHOD='Native Windows NSIS installation over alpha.81; same isolated fixture profile';
+  test('verify-packaged-data-upgrade',out=>[executable,out,'verify',profile,fixture]);
+  test('verify-packaged-combined',out=>[executable,out]);
+  // Unsigned status is explicit; successful launch is not an Authenticode claim.
+  console.log('Windows Authenticode:',run('pwsh',['-NoProfile','-Command',`(Get-AuthenticodeSignature -LiteralPath '${path.join(candidate,installer).replaceAll("'","''")}').Status.ToString()`]).trim());
+ }else throw Error('Unsupported native platform');
+ const cliName=process.platform==='darwin'?`velora-cli-macos-${process.arch}`:'velora-cli-windows-x64';download(tag,candidate,cliName+'.zip');verify(cliName+'.zip');const cliDir=path.join(root,'cli');fs.mkdirSync(cliDir);
+ if(process.platform==='darwin')run('ditto',['-x','-k',path.join(candidate,cliName+'.zip'),cliDir]);else run('tar',['-xf',path.join(candidate,cliName+'.zip'),'-C',cliDir]);
+ const cliFile=path.join(cliDir,cliName+(process.platform==='win32'?'.exe':''));const version=run(cliFile,['--version']).trim();assert(version.includes('3.0.0-alpha.82'));
+ const result={candidate:tag,source:manifest.desktopSourceCommit,platform:process.platform,arch:process.arch,os:os.release(),nativeInstallation:'passed',upgradeData:'passed',packagedAcceptance:'passed',cliVersion:version,limits:['No live team accounts or provider journeys run by this workflow','Windows artifacts are unsigned']};
+ console.log('NATIVE_ACCEPTANCE_RESULT '+JSON.stringify(result));
+ fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'```json\n'+JSON.stringify(result,null,2)+'\n```\n');
+})().catch(e=>{console.error(e);process.exitCode=1;});
