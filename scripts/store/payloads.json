@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "23d03dce4cd552db22220920a2af8b60a60c8dd1",
+  "x64": {
+    "sha256": "7bc8fddecb362c215dc451e6edadb319f426e0282cb8e6787ac7c295953f7491",
+    "size": 204964505
+  },
+  "arm64": {
+    "sha256": "4f76f7498d58479556e85bf5a18406e730bfc8f4c2131bb3f8ed76664e4c892e",
+    "size": 203092918
+  }
+}

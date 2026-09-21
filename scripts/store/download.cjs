@@ -1,0 +1,23 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const {Readable} = require('node:stream');
+const {pipeline} = require('node:stream/promises');
+const assert = require('node:assert/strict');
+(async()=>{
+ const arch = process.env.CANDIDATE_ARCH;
+ assert(['x64','arm64'].includes(arch));
+ const manifest = require('./payloads.json');
+ const name = `Velora-Store-payload-${arch}.zip`;
+ const url = JSON.parse(process.env.CANDIDATE_URLS||'{}')[name];
+ assert(url && new URL(url).hostname === 'release-assets.githubusercontent.com');
+ const response = await fetch(url,{signal:AbortSignal.timeout(240000)});
+ if (!response.ok) throw Error(`Candidate download HTTP ${response.status}`);
+ fs.mkdirSync('store-input',{recursive:true});
+ const file = path.join('store-input',name);
+ await pipeline(Readable.fromWeb(response.body),fs.createWriteStream(file));
+ const bytes = fs.readFileSync(file);
+ assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),manifest[arch].sha256);
+ assert.equal(bytes.length,manifest[arch].size);
+ console.log(JSON.stringify({arch,sourceCommit:manifest.sourceCommit,sha256:manifest[arch].sha256}));
+})().catch(()=>{console.error('Pinned Store payload download failed; URL withheld');process.exit(1);});

@@ -60,6 +60,15 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))';
     const waitPage=async expression=>{const deadline=Date.now()+10000;while(!await evaluate(expression)){if(Date.now()>deadline)throw Error('UI condition timed out: '+expression);await new Promise(resolve=>setTimeout(resolve,50));}};
 
+    if (process.env.VELORA_EXPECT_STORE === '1') {
+      assert.equal(await main('process.windowsStore'), true, 'Launch must carry the installed MSIX identity');
+      const update = await evaluate('window.velora.updates.state()');
+      assert.equal(update.managedBy, 'microsoft-store');
+      assert.equal(update.status, 'unsupported');
+      assert.equal((await evaluate('window.velora.updates.check()')).status, 'unsupported');
+      assert.equal((await evaluate('window.velora.updates.download()')).status, 'unsupported');
+      assert.equal((await evaluate('window.velora.updates.installAndRestart()')).status, 'unsupported');
+    }
     const rows = [];
     for (const environment of ['Work', 'Code']) {
       await evaluate(`(async()=>{[...document.querySelectorAll('[role="tab"]')].find(x=>x.textContent.trim()===${JSON.stringify(environment)}).click();await ${frames};})()`);

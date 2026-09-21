@@ -1,0 +1,40 @@
+name: Microsoft Store package and native acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-store-candidate
+  cancel-in-progress: false
+jobs:
+  store:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Download pinned compiled candidate
+        env:
+          CANDIDATE_URLS: ${{ secrets.STORE_CANDIDATE_DOWNLOADS }}
+          CANDIDATE_ARCH: ${{ matrix.arch }}
+        run: node scripts/store/download.cjs
+      - name: Package and install isolated MSIX
+        shell: pwsh
+        run: ./scripts/store/package.ps1 -Architecture '${{ matrix.arch }}'
+      - name: Upload Store package and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: velora-store-${{ matrix.arch }}
+          path: store-output
+          retention-days: 7
