@@ -4,7 +4,7 @@ const fs=require('node:fs');const path=require('node:path');const os=require('no
 const tag=process.env.CANDIDATE_TAG;
 assert.equal(tag,'v3.0.0-alpha.82','This acceptance suite is pinned to the alpha.82 candidate');
 assert.equal(process.env.GITHUB_ACTIONS,'true','Run installation tests only on disposable CI runners');
-const root=fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-'));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
+const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-')));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
 fs.mkdirSync(candidate);fs.mkdirSync(previous);const evidence=path.join(root,'evidence');fs.mkdirSync(evidence);
 function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return execFileSync(cmd,args,{encoding:'utf8',stdio:'pipe',timeout:180000,...options});}
 function download(release,dir,name){
@@ -46,7 +46,13 @@ let manifest;
  }else if(process.platform==='win32'){
   const old=`Velora-Setup-3.0.0-alpha.81-${process.arch}.exe`;const installer=`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`;
   download('v3.0.0-alpha.81',previous,old);download(tag,candidate,installer);verify(installer);
-  const installation=path.join(root,'installation');windowsInstall(path.join(previous,old),installation);executable=path.join(installation,'Velora.exe');assert(fs.existsSync(executable),'NSIS did not install alpha.81');
+  const installation=path.join(root,'installation');windowsInstall(path.join(previous,old),installation);executable=path.join(installation,'Velora.exe');if(!fs.existsSync(executable)){
+    const scan=run('pwsh',['-NoProfile','-Command',`Get-ChildItem -LiteralPath '${installation}', '$env:LOCALAPPDATA\\Programs' -Filter Velora.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName | ConvertTo-Json`]);
+    console.log('NSIS destination diagnostic:',scan);
+    const found=scan.trim()?JSON.parse(scan):[];const paths=Array.isArray(found)?found:[found];
+    if(paths.length===1)executable=paths[0];
+  }
+  assert(fs.existsSync(executable),'NSIS did not install alpha.81 at the requested or registered per-user location');
   test('verify-packaged-data-upgrade',out=>[executable,out,'seed',profile,fixture]);
   windowsInstall(path.join(candidate,installer),installation);
   process.env.VELORA_ACCEPTANCE_METHOD='Native Windows NSIS installation over alpha.81; same isolated fixture profile';

@@ -6,6 +6,11 @@ on:
         description: Draft release tag containing candidate binaries
         required: true
         default: v3.0.0-alpha.82
+      platforms:
+        description: Native targets to test
+        type: choice
+        default: all
+        options: [all, macs, windows-arm]
       probe_only:
         description: Verify native runners without downloading candidate
         type: boolean
@@ -20,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [macos-15-intel, macos-15, windows-2025, windows-11-arm]
+        runner: ${{ fromJSON(inputs.platforms == 'macs' && '["macos-15-intel","macos-15"]' || inputs.platforms == 'windows-arm' && '["windows-11-arm"]' || '["macos-15-intel","macos-15","windows-2025","windows-11-arm"]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:

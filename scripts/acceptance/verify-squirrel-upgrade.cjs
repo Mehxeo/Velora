@@ -84,11 +84,16 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       const plist=path.resolve(executable,'../../Info.plist');
       installedVersion=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString',plist],{encoding:'utf8'}).trim();
       const lines=execFileSync('ps',['-axo','pid=,command='],{encoding:'utf8'}).split('\n');
-      const launched=lines.map(l=>l.trim().match(/^(\d+)\s+(.*)$/)).find(m=>m && Number(m[1])!==proc.pid && (m[2]===executable || m[2].startsWith(executable+' ')));
+      const launched=lines.map(l=>l.trim().match(/^(\d+)\s+(.*)$/)).find(m=>m && Number(m[1])!==proc.pid && [executable,fs.realpathSync(executable)].some(file=>m[2]===file || m[2].startsWith(file+' ')));
       if(installedVersion==='3.0.0-alpha.82' && launched){relaunchPid=Number(launched[1]);break;}
       await new Promise(resolve=>setTimeout(resolve,500));
     }
     assert.equal(installedVersion,'3.0.0-alpha.82','Squirrel did not replace application');
+    if(!relaunchPid){
+      console.log('Relaunch diagnostics:',execFileSync('ps',['-axo','pid=,command='],{encoding:'utf8'}).split('\n').filter(line=>line.includes('/Velora.app/') || line.includes('ShipIt')).join('\n'));
+      const cache=path.join(require('node:os').homedir(),'Library/Caches/ai.velora.desktop.ShipIt');
+      for(const name of ['ShipIt_stderr.log','ShipIt_stdout.log'])if(fs.existsSync(path.join(cache,name)))console.log(name,fs.readFileSync(path.join(cache,name),'utf8').slice(-8000));
+    }
     assert(relaunchPid,'Squirrel did not automatically relaunch the application');
     process.kill(relaunchPid,'SIGTERM');
     const result={...download,installedVersion,originalPid:proc.pid,relaunchPid,nativeInstallation:'passed',automaticRelaunch:'passed',platform:process.platform,arch:process.arch};
