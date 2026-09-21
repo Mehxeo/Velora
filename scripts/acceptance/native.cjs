@@ -59,7 +59,9 @@ let manifest;
   run('codesign',['--verify','--deep','--strict',fresh]);run('spctl',['--assess','--type','execute','--verbose',fresh]);
   test('verify-packaged-combined',out=>[path.join(fresh,'Contents/MacOS/Velora'),out]);
  }else if(process.platform==='win32'){
-  const old=`Velora-Setup-3.0.0-alpha.81-${process.arch}.exe`;const installer=`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`;
+  // Published alpha.81 ARM NSIS cannot decode its ARM64 payload (upstream #9983).
+  // Use the supported alpha.81 x64 installation on ARM, then verify a real native ARM upgrade.
+  const old=`Velora-Setup-3.0.0-alpha.81-x64.exe`;const installer=`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`;
   download('v3.0.0-alpha.81',previous,old);download(tag,candidate,installer);verify(installer);
   const installation=path.join(root,'installation');windowsInstall(path.join(previous,old),installation);executable=path.join(installation,'Velora.exe');if(!fs.existsSync(executable)){
     const scan=run('pwsh',['-NoProfile','-Command',`Get-ChildItem -LiteralPath '${installation}', '${path.join(process.env.LOCALAPPDATA,'Programs')}' -Filter Velora.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName | ConvertTo-Json`]);
@@ -70,16 +72,17 @@ let manifest;
   assert(fs.existsSync(executable),'NSIS did not install alpha.81 at the requested or registered per-user location');
   test('verify-packaged-data-upgrade',out=>[executable,out,'seed',profile,fixture]);
   windowsInstall(path.join(candidate,installer),installation);
-  process.env.VELORA_ACCEPTANCE_METHOD='Native Windows NSIS installation over alpha.81; same isolated fixture profile';
+  process.env.VELORA_ACCEPTANCE_METHOD='Native Windows NSIS installation over alpha.81 x64; same isolated fixture profile';
   test('verify-packaged-data-upgrade',out=>[executable,out,'verify',profile,fixture]);
   test('verify-packaged-combined',out=>[executable,out]);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(evidence,'verify-packaged-combined.json'))).arch,process.arch,'Candidate must run in its native architecture');
   // Unsigned status is explicit; successful launch is not an Authenticode claim.
   console.log('Windows Authenticode:',run('pwsh',['-NoProfile','-Command',`(Get-AuthenticodeSignature -LiteralPath '${path.join(candidate,installer).replaceAll("'","''")}').Status.ToString()`]).trim());
  }else throw Error('Unsupported native platform');
  const cliName=process.platform==='darwin'?`velora-cli-macos-${process.arch}`:'velora-cli-windows-x64';download(tag,candidate,cliName+'.zip');verify(cliName+'.zip');const cliDir=path.join(root,'cli');fs.mkdirSync(cliDir);
  if(process.platform==='darwin')run('ditto',['-x','-k',path.join(candidate,cliName+'.zip'),cliDir]);else run('tar',['-xf',path.join(candidate,cliName+'.zip'),'-C',cliDir]);
  const cliFile=path.join(cliDir,cliName+(process.platform==='win32'?'.exe':''));const version=run(cliFile,['--version']).trim();assert(version.includes('3.0.0-alpha.82'));
- const result={candidate:tag,source:manifest.desktopSourceCommit,platform:process.platform,arch:process.arch,os:os.release(),nativeInstallation:'passed',upgradeData:'passed',packagedAcceptance:'passed',cliVersion:version,limits:['No live team accounts or provider journeys run by this workflow','Windows artifacts are unsigned']};
+ const result={candidate:tag,source:manifest.desktopSourceCommit,platform:process.platform,arch:process.arch,os:os.release(),previousArchitecture:process.platform==='win32'?'x64':process.arch,nativeInstallation:'passed',upgradeData:'passed',packagedAcceptance:'passed',cliVersion:version,limits:['No live team accounts or provider journeys run by this workflow','Windows artifacts are unsigned']};
  console.log('NATIVE_ACCEPTANCE_RESULT '+JSON.stringify(result));
  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'```json\n'+JSON.stringify(result,null,2)+'\n```\n');
 })().catch(e=>{console.error(e);process.exitCode=1;});
