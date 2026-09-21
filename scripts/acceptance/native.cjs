@@ -8,6 +8,7 @@ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-'
 fs.mkdirSync(candidate);fs.mkdirSync(previous);const evidence=path.join(root,'evidence');fs.mkdirSync(evidence);
 function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return execFileSync(cmd,args,{encoding:'utf8',stdio:'pipe',timeout:180000,...options});}
 function download(release,dir,name){
+ if(fs.existsSync(path.join(dir,name)))return;
  if(release!==tag)return run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});
  const url=JSON.parse(process.env.CANDIDATE_URLS||'{}')[name];assert(url,'Missing temporary download link for '+name);
  assert.equal(new URL(url).hostname,'release-assets.githubusercontent.com');
@@ -23,6 +24,10 @@ let manifest;
 (async()=>{
  download(tag,candidate,'ARTIFACTS.json');manifest=JSON.parse(fs.readFileSync(path.join(candidate,'ARTIFACTS.json')));
  assert.equal(manifest.desktopSourceCommit,'4cdfa26af76f8115b27ba563433ffe04d5dee2cf');
+ // Fetch all expiring URLs before time-consuming install/UI tests.
+ const artifactNames=process.platform==='darwin'?[`Velora-3.0.0-alpha.82${process.arch==='arm64'?'-arm64':''}-mac.zip`,`Velora-3.0.0-alpha.82${process.arch==='arm64'?'-arm64':''}.dmg`,'latest-mac.yml',`velora-cli-macos-${process.arch}.zip`]:[`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`,'velora-cli-windows-x64.zip'];
+ for(const name of artifactNames){download(tag,candidate,name);verify(name);}
+
  const profile=path.join(root,'profile');const fixture=path.join(root,'fixture.json');let executable;
  if(process.platform==='darwin'){
   const suffix=process.arch==='arm64'?'-arm64':'';

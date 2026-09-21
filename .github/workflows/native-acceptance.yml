@@ -18,7 +18,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: native-binary-acceptance
+  group: native-binary-acceptance-${{ inputs.platforms || 'all' }}
   cancel-in-progress: false
 jobs:
   native:
