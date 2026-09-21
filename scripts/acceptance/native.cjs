@@ -47,7 +47,7 @@ let manifest;
   const old=`Velora-Setup-3.0.0-alpha.81-${process.arch}.exe`;const installer=`Velora-Setup-3.0.0-alpha.82-${process.arch}.exe`;
   download('v3.0.0-alpha.81',previous,old);download(tag,candidate,installer);verify(installer);
   const installation=path.join(root,'installation');windowsInstall(path.join(previous,old),installation);executable=path.join(installation,'Velora.exe');if(!fs.existsSync(executable)){
-    const scan=run('pwsh',['-NoProfile','-Command',`Get-ChildItem -LiteralPath '${installation}', '$env:LOCALAPPDATA\\Programs' -Filter Velora.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName | ConvertTo-Json`]);
+    const scan=run('pwsh',['-NoProfile','-Command',`Get-ChildItem -LiteralPath '${installation}', '${path.join(process.env.LOCALAPPDATA,'Programs')}' -Filter Velora.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName | ConvertTo-Json`]);
     console.log('NSIS destination diagnostic:',scan);
     const found=scan.trim()?JSON.parse(scan):[];const paths=Array.isArray(found)?found:[found];
     if(paths.length===1)executable=paths[0];
