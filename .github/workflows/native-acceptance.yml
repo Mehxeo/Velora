@@ -1,0 +1,39 @@
+name: Native binary acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Draft release tag containing candidate binaries
+        required: true
+        default: v3.0.0-alpha.82
+      probe_only:
+        description: Verify native runners without downloading candidate
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: native-binary-acceptance
+  cancel-in-progress: false
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15-intel, macos-15, windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Record native environment
+        shell: bash
+        run: node -e 'console.log(JSON.stringify({platform:process.platform,arch:process.arch,release:require("os").release(),cpus:require("os").cpus()[0].model}))'
+      - name: Install and verify candidate binaries
+        if: ${{ !inputs.probe_only }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_TAG: ${{ inputs.candidate }}
+        run: node scripts/acceptance/native.cjs
