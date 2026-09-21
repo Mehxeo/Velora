@@ -1,0 +1,28 @@
+name: Store candidate screenshots
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  media:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Retrieve exact verified MSIX
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 35660115021 --repo Mehxeo/Velora --name velora-store-x64 --dir existing-store
+      - name: Capture installed app with isolated local fixtures
+        shell: pwsh
+        run: ./scripts/store/media.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: velora-store-screenshots
+          path: store-output
+          retention-days: 7

@@ -183,6 +183,16 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       accessibility.push(row);assert(!row.overflow,'200% zoom overflow '+JSON.stringify(row));
     }
     await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1)`);
+    if (process.env.VELORA_EXPECT_STORE === '1') {
+      await evaluate(`(async()=>{await window.velora.chat.remove(${JSON.stringify(daily.chatId)});await window.velora.settings.updatePreferences({appearance:{theme:'dark',reducedMotion:'on',textScale:'default'},navigation:{personal:{[${JSON.stringify(fixture.scope)}]:{version:1,pins:[],onboarding:{path:'code',dismissed:true,skipped:[]}}}}});})()`);
+      await main('pilotElectron.BrowserWindow.getAllWindows()[0].webContents.reload()');
+      await new Promise(resolve=>setTimeout(resolve,1200));
+      for (const route of ['/workflows','/crews','/settings/updates']) {
+        await evaluate('location.hash='+JSON.stringify(route));
+        await new Promise(resolve=>setTimeout(resolve,700));
+        await main(`(async()=>{const png=await pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage();process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile+'-store-'+route.slice(1).replaceAll('/','-')+'.png')},png.toPNG());})()`);
+      }
+    }
     const sorted = [...keyboard].sort((a,b) => a-b);
     const result = { arch: await main('process.arch'), executable, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
     fs.writeFileSync(resultFile, JSON.stringify(result, null, 2) + '\n');
