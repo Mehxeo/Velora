@@ -80,7 +80,11 @@ let manifest;
   test('verify-packaged-combined',out=>[executable,out]);
   assert.equal(JSON.parse(fs.readFileSync(path.join(evidence,'verify-packaged-combined.json'))).arch,process.arch,'Candidate must run in its native architecture');
   // Unsigned status is explicit; successful launch is not an Authenticode claim.
-  console.log('Windows Authenticode:',run('pwsh',['-NoProfile','-Command',`(Get-AuthenticodeSignature -LiteralPath '${path.join(candidate,installer).replaceAll("'","''")}').Status.ToString()`]).trim());
+  const pe=fs.readFileSync(path.join(candidate,installer));const header=pe.readUInt32LE(0x3c);assert.equal(pe.toString('ascii',header,header+4),'PE\0\0');
+  const optional=header+24,magic=pe.readUInt16LE(optional);assert([0x10b,0x20b].includes(magic));
+  const certificateDirectory=optional+(magic===0x20b?112:96)+4*8;
+  assert.equal(pe.readUInt32LE(certificateDirectory+4),0,'This candidate is expected to have no Authenticode certificate');
+  console.log('Windows Authenticode: certificate table absent (unsigned)');
  }else throw Error('Unsupported native platform');
  const cliName=process.platform==='darwin'?`velora-cli-macos-${process.arch}`:'velora-cli-windows-x64';download(tag,candidate,cliName+'.zip');verify(cliName+'.zip');const cliDir=path.join(root,'cli');fs.mkdirSync(cliDir);
  if(process.platform==='darwin')run('ditto',['-x','-k',path.join(candidate,cliName+'.zip'),cliDir]);else run('tar',['-xf',path.join(candidate,cliName+'.zip'),'-C',cliDir]);
