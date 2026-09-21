@@ -19,7 +19,17 @@ function download(release,dir,name){
 }
 function test(name,args){const out=path.join(evidence,name+'.json');try{const output=run(process.execPath,[path.join(__dirname,name+'.cjs'),...args(out)],{timeout:240000});console.log(output);}catch(e){console.error(e.stdout?.toString(),e.stderr?.toString());throw e;}finally{if(fs.existsSync(out))console.log(fs.readFileSync(out,'utf8'));if(fs.existsSync(out+'.log'))console.log(fs.readFileSync(out+'.log','utf8').slice(-14000));}}
 function verify(name){const expected=manifest.artifacts.find(a=>a.name===name||a.name==='cli/'+name);assert(expected,'Missing pinned hash '+name);const bytes=fs.readFileSync(path.join(candidate,name));assert.equal(bytes.length,expected.size);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),expected.sha256);}
-function windowsInstall(file,destination){const script='$p=Start-Process -FilePath $args[0] -ArgumentList @("/S",("/D="+$args[1])) -PassThru -Wait; exit $p.ExitCode';const scriptFile=path.join(root,'install.ps1');fs.writeFileSync(scriptFile,script);run('pwsh',['-NoProfile','-File',scriptFile,file,destination]);}
+function windowsInstall(file,destination){
+ // Observe the installer's own exit status. PowerShell Start-Process can lose it
+ // when running an emulated installer on an ARM runner.
+ const result=spawnSync(file,['/S','/currentuser','/D='+destination],{encoding:'utf8',timeout:180000,windowsHide:true});
+ console.log('NSIS process result:',JSON.stringify({installer:path.basename(file),status:result.status,signal:result.signal,error:result.error?.message,stdout:result.stdout,stderr:result.stderr}));
+ if(result.error||result.status!==0){
+  console.log(run('pwsh',['-NoProfile','-Command',"Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue | Where-Object {$_.ProviderName -match 'Application Error|Windows Error Reporting'} | Select-Object -First 5 TimeCreated,Id,Message | ConvertTo-Json" ]));
+ }
+ assert.equal(result.status,0,'NSIS installer did not complete successfully');
+}
+
 let manifest;
 (async()=>{
  download(tag,candidate,'ARTIFACTS.json');manifest=JSON.parse(fs.readFileSync(path.join(candidate,'ARTIFACTS.json')));
