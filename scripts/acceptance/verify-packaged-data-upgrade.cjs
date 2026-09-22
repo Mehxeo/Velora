@@ -2,7 +2,7 @@
 // Node 22+. Runs only the app's temporary-profile smoke mode. It never enables
 // Chromium remote debugging or changes the signed bundle/installed profile.
 // Usage: node scripts/verify-packaged-data-upgrade.cjs <executable> <result.json> <seed|verify> <isolated-profile> <fixture.json>
-// Seed with alpha.82.1, then verify using a manually installed candidate. No native updater installation is invoked.
+// Seed with alpha.82.2, then verify using a manually installed candidate. No native updater installation is invoked.
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
@@ -62,11 +62,11 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     const version=await main('pilotElectron.app.getVersion()');
     let result;
     if(mode==='seed'){
-      assert.equal(version,'3.0.0-alpha.82.1');
+      assert.equal(version,'3.0.0-alpha.82.2');
       const fixture=await evaluate(`(async()=>{
         const project=await window.velora.project.save({name:'Upgrade continuity project'});
         const chat=await window.velora.chat.create('Upgrade continuity conversation');
-        const message=await window.velora.chat.append({chatId:chat.id,role:'user',content:'Preserve this exact alpha.82.1 message: punctuation, **Markdown**, and Ω.'});
+        const message=await window.velora.chat.append({chatId:chat.id,role:'user',content:'Preserve this exact alpha.82.2 message: punctuation, **Markdown**, and Ω.'});
         const document=await window.velora.documents.save({title:'Upgrade continuity document',content:'Source note: Keep the original text and provenance.',chatId:chat.id});
         await window.velora.settings.updatePreferences({appearance:{theme:'light'}});
         return {project,chat:(await window.velora.chat.list()).find(c=>c.id===chat.id),message,document};
@@ -74,7 +74,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       fs.writeFileSync(fixtureFile,JSON.stringify(fixture,null,2)+'\n');
       result={version,profile,seed:'passed',fixtureFile};
     }else{
-      assert.equal(version,'3.0.0-alpha.82.2');
+      assert.equal(version,'3.0.0-alpha.82.3');
       const before=JSON.parse(fs.readFileSync(fixtureFile,'utf8'));
       const after=await evaluate(`(async()=>({projects:await window.velora.project.list(),chats:await window.velora.chat.list(),messages:await window.velora.chat.messages(${JSON.stringify(before.chat.id)}),document:await window.velora.documents.get(${JSON.stringify(before.document.id)}),preferences:await window.velora.settings.preferences(),history:await window.velora.tasks.history({limit:1})}))()`);
       assert(after.projects.some(p=>p.id===before.project.id && p.name===before.project.name),'Project not preserved');

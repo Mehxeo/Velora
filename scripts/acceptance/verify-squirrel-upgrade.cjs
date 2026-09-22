@@ -66,7 +66,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await wait(() => output.includes('workspace visible'));
     const evaluate = code => main('pilotElectron.BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(' + JSON.stringify(code) + ')');
     const version=await main('pilotElectron.app.getVersion()');
-    assert.equal(version,'3.0.0-alpha.82.1');
+    assert.equal(version,'3.0.0-alpha.82.2');
     const download=await main(`(async()=>{
       globalThis.pilotUpdater=process.getBuiltinModule('module').createRequire(pilotElectron.app.getAppPath()+'/package.json')('electron-updater').autoUpdater;
       pilotUpdater.autoInstallOnAppQuit=true;pilotUpdater.autoRunAppAfterInstall=true;pilotUpdater.autoDownload=false;pilotUpdater.allowPrerelease=true;
@@ -76,7 +76,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       await pilotUpdater.downloadUpdate();await nativeReady;
       return {from:pilotElectron.app.getVersion(),to:checked.updateInfo.version,nativeSquirrelDownload:true};
     })()`);
-    assert.equal(download.to,'3.0.0-alpha.82.2');
+    assert.equal(download.to,'3.0.0-alpha.82.3');
     await main(`pilotElectron.app.quit=pilotQuit;setTimeout(()=>pilotUpdater.quitAndInstall(),500);true`);
     socket.close();socket=null;quit=null;
     const deadline=Date.now()+120000;let relaunchPid;let installedVersion;
@@ -85,10 +85,10 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       installedVersion=execFileSync('/usr/libexec/PlistBuddy',['-c','Print :CFBundleShortVersionString',plist],{encoding:'utf8'}).trim();
       const lines=execFileSync('ps',['-axo','pid=,command='],{encoding:'utf8'}).split('\n');
       const launched=lines.map(l=>l.trim().match(/^(\d+)\s+(.*)$/)).find(m=>m && Number(m[1])!==proc.pid && [executable,fs.realpathSync(executable)].some(file=>m[2]===file || m[2].startsWith(file+' ')));
-      if(installedVersion==='3.0.0-alpha.82.2' && launched){relaunchPid=Number(launched[1]);break;}
+      if(installedVersion==='3.0.0-alpha.82.3' && launched){relaunchPid=Number(launched[1]);break;}
       await new Promise(resolve=>setTimeout(resolve,500));
     }
-    assert.equal(installedVersion,'3.0.0-alpha.82.2','Squirrel did not replace application');
+    assert.equal(installedVersion,'3.0.0-alpha.82.3','Squirrel did not replace application');
     if(!relaunchPid){
       console.log('Relaunch diagnostics:',execFileSync('ps',['-axo','pid=,command='],{encoding:'utf8'}).split('\n').filter(line=>line.includes('/Velora.app/') || line.includes('ShipIt')).join('\n'));
       const cache=path.join(require('node:os').homedir(),'Library/Caches/ai.velora.desktop.ShipIt');
