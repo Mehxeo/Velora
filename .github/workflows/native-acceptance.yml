@@ -10,7 +10,7 @@ on:
         description: Native targets to test
         type: choice
         default: all
-        options: [all, macs, windows, windows-arm]
+        options: [all, macs, mac-intel, windows, windows-arm]
       probe_only:
         description: Verify native runners without downloading candidate
         type: boolean
@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.platforms == 'macs' && '[{"runner":"macos-15-intel","installer":"arch"},{"runner":"macos-15","installer":"arch"}]' || inputs.platforms == 'windows' && '[{"runner":"windows-2025","installer":"arch"},{"runner":"windows-2025","installer":"universal"},{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]' || inputs.platforms == 'windows-arm' && '[{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]' || '[{"runner":"macos-15-intel","installer":"arch"},{"runner":"macos-15","installer":"arch"},{"runner":"windows-2025","installer":"arch"},{"runner":"windows-2025","installer":"universal"},{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]') }}
+        include: ${{ fromJSON(inputs.platforms == 'mac-intel' && '[{"runner":"macos-15-intel","installer":"arch"}]' || inputs.platforms == 'macs' && '[{"runner":"macos-15-intel","installer":"arch"},{"runner":"macos-15","installer":"arch"}]' || inputs.platforms == 'windows' && '[{"runner":"windows-2025","installer":"arch"},{"runner":"windows-2025","installer":"universal"},{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]' || inputs.platforms == 'windows-arm' && '[{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]' || '[{"runner":"macos-15-intel","installer":"arch"},{"runner":"macos-15","installer":"arch"},{"runner":"windows-2025","installer":"arch"},{"runner":"windows-2025","installer":"universal"},{"runner":"windows-11-arm","installer":"arch"},{"runner":"windows-11-arm","installer":"universal"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:

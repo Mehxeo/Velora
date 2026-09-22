@@ -96,6 +96,16 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     }
     assert(relaunchPid,'Squirrel did not automatically relaunch the application');
     process.kill(relaunchPid,'SIGTERM');
+    // The next test launches this same installed bundle. A signal being sent
+    // does not mean the relaunched app has exited or released its resources.
+    const stoppedAt = Date.now() + 30000;
+    let relaunchStopped = false;
+    while (Date.now() < stoppedAt) {
+      try { process.kill(relaunchPid, 0); }
+      catch (error) { if (error.code === 'ESRCH') { relaunchStopped = true; break; } throw error; }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert(relaunchStopped, 'Relaunched app did not exit before the data verification launch');
     const result={...download,installedVersion,originalPid:proc.pid,relaunchPid,nativeInstallation:'passed',automaticRelaunch:'passed',platform:process.platform,arch:process.arch};
     fs.writeFileSync(resultFile,JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
   } finally {
