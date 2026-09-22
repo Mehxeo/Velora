@@ -192,7 +192,8 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     }
     await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1)`);
     const sorted = [...keyboard].sort((a,b) => a-b);
-    const result = { executable, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
+    const runtime = await main(`({arch:process.arch,platform:process.platform})`);
+    const result = { executable, ...runtime, nativeHistory: "passed", daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
     fs.writeFileSync(resultFile, JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify({ routes: rows.length, keyboardP95Ms: result.keyboardTwoFrameP95Ms, projectNavigation: 'passed' }));
   } finally {
