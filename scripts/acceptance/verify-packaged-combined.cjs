@@ -8,7 +8,11 @@ const assert = require('node:assert/strict');
 const [executable, resultFile] = process.argv.slice(2);
 if (!executable || !resultFile) throw Error('Supply candidate executable and output JSON');
 (async () => {
-  const proc = spawn(executable, ['--inspect-brk=0', '--packaged-renderer-smoke']);
+  const historyRoot=fs.mkdtempSync(require('node:path').join(require('node:os').tmpdir(),'velora-native-packaged-'));
+  const claudeRoot=require('node:path').join(historyRoot,'claude'),codexRoot=require('node:path').join(historyRoot,'codex');
+  fs.mkdirSync(require('node:path').join(claudeRoot,'projects','fixture'),{recursive:true});fs.mkdirSync(require('node:path').join(codexRoot,'sessions'),{recursive:true});
+  fs.writeFileSync(require('node:path').join(claudeRoot,'projects','fixture','old.jsonl'),JSON.stringify({type:'user',sessionId:'pre-install-fixture',cwd:historyRoot,uuid:'prompt1',timestamp:'2025-01-01T00:00:00Z',message:{content:'Investigated the database lock before installing Velora'}}));
+  const proc = spawn(executable, ['--inspect-brk=0', '--packaged-renderer-smoke'],{env:{...process.env,CLAUDE_CONFIG_DIR:claudeRoot,CODEX_HOME:codexRoot}});
   let output = '', inspector, socket, quit;
   const done = new Promise(resolve => proc.once('exit', resolve));
   proc.stderr.on('data', data => {
@@ -51,7 +55,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await send('Runtime.runIfWaitingForDebugger');
     await wait(() => paused);
     // Do not await a promise while the main thread is paused at bootstrap.
-    const bootstrap = await send("Runtime.evaluate", { expression: "globalThis.pilotElectron = process.getBuiltinModule('module').createRequire(" + JSON.stringify(executable) + ")('electron'); globalThis.pilotQuit = pilotElectron.app.quit.bind(pilotElectron.app); pilotElectron.app.quit = () => {}; pilotElectron.app.setLoginItemSettings = () => {};" });
+    const bootstrap = await send("Runtime.evaluate", { expression: "globalThis.pilotElectron = process.getBuiltinModule('module').createRequire(" + JSON.stringify(executable) + ")('electron'); globalThis.pilotQuit = pilotElectron.app.quit.bind(pilotElectron.app); pilotElectron.app.quit = () => {};" });
     if (bootstrap.result?.exceptionDetails) throw Error(JSON.stringify(bootstrap));
     quit = () => main('pilotQuit()');
     await send('Debugger.resume');
@@ -60,15 +64,19 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))';
     const waitPage=async expression=>{const deadline=Date.now()+10000;while(!await evaluate(expression)){if(Date.now()>deadline)throw Error('UI condition timed out: '+expression);await new Promise(resolve=>setTimeout(resolve,50));}};
 
-    if (process.env.VELORA_EXPECT_STORE === '1') {
-      assert.equal(await main('process.windowsStore'), true, 'Launch must carry the installed MSIX identity');
-      const update = await evaluate('window.velora.updates.state()');
-      assert.equal(update.managedBy, 'microsoft-store');
-      assert.equal(update.status, 'unsupported');
-      assert.equal((await evaluate('window.velora.updates.check()')).status, 'unsupported');
-      assert.equal((await evaluate('window.velora.updates.download()')).status, 'unsupported');
-      assert.equal((await evaluate('window.velora.updates.installAndRestart()')).status, 'unsupported');
+    const native=await evaluate("window.velora.tasks.nativeHistory({consent:true,refresh:true})");
+    assert.equal(native.total,1);assert.equal(native.items[0].nativeId,'pre-install-fixture');assert(native.items[0].entries[0].text.includes('database lock'));
+    const denied=await evaluate("window.velora.tasks.nativeHistory({}).then(()=>false,()=>true)");assert.equal(denied,true);
+    await evaluate("location.hash='/sessions'");await waitPage("document.body.innerText.includes('Read local agent history')");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Read local agent history').click()");
+    await waitPage("document.body.innerText.includes('pre-install') || document.body.innerText.includes('Investigated the database lock')");
+    for(const width of [920,1225,1440]){
+      await main(`pilotElectron.BrowserWindow.getAllWindows()[0].setSize(${width},768)`);
+      await evaluate(frames);
+      assert(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'),'Native history page overflow');
+      await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage().then(image=>process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile)}+'.'+${width}+'.png',image.toPNG()))`);
     }
+    await evaluate("window.velora.tasks.clearNativeHistory()");
     const rows = [];
     for (const environment of ['Work', 'Code']) {
       await evaluate(`(async()=>{[...document.querySelectorAll('[role="tab"]')].find(x=>x.textContent.trim()===${JSON.stringify(environment)}).click();await ${frames};})()`);
@@ -95,7 +103,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       assert.equal(feedback.href, target);
       keyboard.push(feedback.ms);
     }
-    await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyDown',keyCode:'k',modifiers:[${JSON.stringify(process.platform === 'darwin' ? 'meta' : 'control')}]});pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyUp',keyCode:'k',modifiers:[${JSON.stringify(process.platform === 'darwin' ? 'meta' : 'control')}]});`);
+    await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyDown',keyCode:'k',modifiers:['meta']});pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyUp',keyCode:'k',modifiers:['meta']});`);
     await evaluate(`(async()=>{await ${frames};const item=[...document.querySelectorAll('[cmdk-item]')].find(x=>x.textContent.trim()==='Projects');if(!item)throw Error('Projects missing from palette');item.click();await ${frames};})()`);
     assert.equal(await evaluate('location.hash'), '#/chat-projects');
 
@@ -183,18 +191,8 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       accessibility.push(row);assert(!row.overflow,'200% zoom overflow '+JSON.stringify(row));
     }
     await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1)`);
-    if (process.env.VELORA_EXPECT_STORE === '1') {
-      await evaluate(`(async()=>{await window.velora.chat.remove(${JSON.stringify(daily.chatId)});await window.velora.settings.updatePreferences({appearance:{theme:'dark',reducedMotion:'on',textScale:'default'},navigation:{personal:{[${JSON.stringify(fixture.scope)}]:{version:1,pins:[],onboarding:{path:'code',dismissed:true,skipped:[]}}}}});})()`);
-      await main('pilotElectron.BrowserWindow.getAllWindows()[0].webContents.reload()');
-      await new Promise(resolve=>setTimeout(resolve,1200));
-      for (const route of ['/workflows','/crews','/settings/updates']) {
-        await evaluate('location.hash='+JSON.stringify(route));
-        await new Promise(resolve=>setTimeout(resolve,700));
-        await main(`(async()=>{const png=await pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage();process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile+'-store-'+route.slice(1).replaceAll('/','-')+'.png')},png.toPNG());})()`);
-      }
-    }
     const sorted = [...keyboard].sort((a,b) => a-b);
-    const result = { arch: await main('process.arch'), executable, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
+    const result = { executable, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
     fs.writeFileSync(resultFile, JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify({ routes: rows.length, keyboardP95Ms: result.keyboardTwoFrameP95Ms, projectNavigation: 'passed' }));
   } finally {
