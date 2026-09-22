@@ -62,7 +62,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     const version=await main('pilotElectron.app.getVersion()');
     let result;
     if(mode==='seed'){
-      assert.equal(version,'3.0.0-alpha.82.2');
+      assert.equal(version,'3.0.0-alpha.82.2.1');
       const fixture=await evaluate(`(async()=>{
         const project=await window.velora.project.save({name:'Upgrade continuity project'});
         const chat=await window.velora.chat.create('Upgrade continuity conversation');
@@ -74,7 +74,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       fs.writeFileSync(fixtureFile,JSON.stringify(fixture,null,2)+'\n');
       result={version,profile,seed:'passed',fixtureFile};
     }else{
-      assert.equal(version,'3.0.0-alpha.82.2.1');
+      assert.equal(version,'3.0.0-alpha.82.2.2');
       const before=JSON.parse(fs.readFileSync(fixtureFile,'utf8'));
       const after=await evaluate(`(async()=>({projects:await window.velora.project.list(),chats:await window.velora.chat.list(),messages:await window.velora.chat.messages(${JSON.stringify(before.chat.id)}),document:await window.velora.documents.get(${JSON.stringify(before.document.id)}),preferences:await window.velora.settings.preferences(),history:await window.velora.tasks.history({limit:1})}))()`);
       assert(after.projects.some(p=>p.id===before.project.id && p.name===before.project.name),'Project not preserved');
