@@ -4,8 +4,8 @@ const fs=require('node:fs');const path=require('node:path');const os=require('no
 const tag=process.env.CANDIDATE_TAG;
 const installerKind=process.env.INSTALLER_KIND||'arch';
 assert(['arch','universal'].includes(installerKind));
-const windowsCandidate=`Velora-Setup-3.0.0-alpha.82.2.2${installerKind==='universal'?'':'-'+process.arch}.exe`;
-assert.equal(tag,'v3.0.0-alpha.82.2.2','This acceptance suite is pinned to the alpha.82 candidate');
+const windowsCandidate=`Velora-Setup-3.0.0-alpha.82.4${installerKind==='universal'?'':'-'+process.arch}.exe`;
+assert.equal(tag,'v3.0.0-alpha.82.4','This acceptance suite is pinned to the alpha.82 candidate');
 assert.equal(process.env.GITHUB_ACTIONS,'true','Run installation tests only on disposable CI runners');
 const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-')));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
 fs.mkdirSync(candidate);fs.mkdirSync(previous);const evidence=path.join(root,'evidence');fs.mkdirSync(evidence);
@@ -36,9 +36,9 @@ function windowsInstall(file,destination){
 let manifest;
 (async()=>{
  download(tag,candidate,'ARTIFACTS.json');manifest=JSON.parse(fs.readFileSync(path.join(candidate,'ARTIFACTS.json')));
- assert.equal(manifest.desktopSourceCommit,'e96313e8a5348d11c3bcbea52701dd32c42031a3');
+ assert.equal(manifest.desktopSourceCommit,'2934caa6a4159f8ab68c9a6260e306c879e9699d');
  // Fetch all expiring URLs before time-consuming install/UI tests.
- const artifactNames=process.platform==='darwin'?[`Velora-3.0.0-alpha.82.2.2${process.arch==='arm64'?'-arm64':''}-mac.zip`,`Velora-3.0.0-alpha.82.2.2${process.arch==='arm64'?'-arm64':''}.dmg`,'latest-mac.yml',`velora-cli-macos-${process.arch}.zip`]:[windowsCandidate,'velora-cli-windows-x64.zip'];
+ const artifactNames=process.platform==='darwin'?[`Velora-3.0.0-alpha.82.4${process.arch==='arm64'?'-arm64':''}-mac.zip`,`Velora-3.0.0-alpha.82.4${process.arch==='arm64'?'-arm64':''}.dmg`,'latest-mac.yml',`velora-cli-macos-${process.arch}.zip`]:[windowsCandidate,'velora-cli-windows-x64.zip'];
  for(const name of artifactNames){download(tag,candidate,name);verify(name);}
 
  const profile=path.join(root,'profile');const fixture=path.join(root,'fixture.json');let executable;
@@ -50,14 +50,14 @@ let manifest;
   const bundle=path.join(installation,'Velora.app');executable=path.join(bundle,'Contents/MacOS/Velora');
   run('codesign',['--verify','--deep','--strict',bundle]);
   test('verify-packaged-data-upgrade',out=>[executable,out,'seed',profile,fixture]);
-  for(const name of [`Velora-3.0.0-alpha.82.2.2${suffix}-mac.zip`,`Velora-3.0.0-alpha.82.2.2${suffix}.dmg`,'latest-mac.yml']){download(tag,candidate,name);verify(name);}
+  for(const name of [`Velora-3.0.0-alpha.82.4${suffix}-mac.zip`,`Velora-3.0.0-alpha.82.4${suffix}.dmg`,'latest-mac.yml']){download(tag,candidate,name);verify(name);}
   test('verify-squirrel-upgrade',out=>[executable,out,candidate]);
   process.env.VELORA_ACCEPTANCE_METHOD='Native Squirrel download, installation and automatic relaunch; same isolated fixture profile';
   test('verify-packaged-data-upgrade',out=>[executable,out,'verify',profile,fixture]);
   // Also exercise the DMG installer, staple, signature, and launch path.
   const mount=path.join(root,'mount');fs.mkdirSync(mount);
-  run('xcrun',['stapler','validate',path.join(candidate,`Velora-3.0.0-alpha.82.2.2${suffix}.dmg`)]);
-  run('hdiutil',['attach',path.join(candidate,`Velora-3.0.0-alpha.82.2.2${suffix}.dmg`),'-readonly','-nobrowse','-mountpoint',mount]);
+  run('xcrun',['stapler','validate',path.join(candidate,`Velora-3.0.0-alpha.82.4${suffix}.dmg`)]);
+  run('hdiutil',['attach',path.join(candidate,`Velora-3.0.0-alpha.82.4${suffix}.dmg`),'-readonly','-nobrowse','-mountpoint',mount]);
   const fresh=path.join(root,'fresh','Velora.app');run('ditto',[path.join(mount,'Velora.app'),fresh]);run('hdiutil',['detach',mount]);
   run('codesign',['--verify','--deep','--strict',fresh]);run('spctl',['--assess','--type','execute','--verbose',fresh]);
   test('verify-packaged-combined',out=>[path.join(fresh,'Contents/MacOS/Velora'),out]);
@@ -87,7 +87,7 @@ let manifest;
  }else throw Error('Unsupported native platform');
  const cliName=process.platform==='darwin'?`velora-cli-macos-${process.arch}`:'velora-cli-windows-x64';download(tag,candidate,cliName+'.zip');verify(cliName+'.zip');const cliDir=path.join(root,'cli');fs.mkdirSync(cliDir);
  if(process.platform==='darwin')run('ditto',['-x','-k',path.join(candidate,cliName+'.zip'),cliDir]);else run('tar',['-xf',path.join(candidate,cliName+'.zip'),'-C',cliDir]);
- const cliFile=path.join(cliDir,cliName+(process.platform==='win32'?'.exe':''));const version=run(cliFile,['--version']).trim();assert(version.includes('3.0.0-alpha.82.2.2'));
+ const cliFile=path.join(cliDir,cliName+(process.platform==='win32'?'.exe':''));const version=run(cliFile,['--version']).trim();assert(version.includes('3.0.0-alpha.82.4'));
  run(process.execPath,[path.join(__dirname,'verify-cli.cjs'),cliFile],{timeout:180000});
  const result={cliDailyWorkflows:'passed',candidate:tag,source:manifest.desktopSourceCommit,platform:process.platform,arch:process.arch,os:os.release(),installerKind,previousArchitecture:process.platform==='win32'?'x64':process.arch,nativeInstallation:'passed',upgradeData:'passed',packagedAcceptance:'passed',cliVersion:version,limits:['No live team accounts or provider journeys run by this workflow','Windows artifacts are unsigned']};
  console.log('NATIVE_ACCEPTANCE_RESULT '+JSON.stringify(result));
