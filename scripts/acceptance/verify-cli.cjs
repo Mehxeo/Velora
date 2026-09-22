@@ -7,14 +7,20 @@ const { execFileSync, spawn } = require('node:child_process');
 const cli = process.argv[2];
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'velora-cli-acceptance-'));
 const db = path.join(root, 'nested', 'state.sqlite');
-const env = { ...process.env, VELORA_HOME: path.join(root, 'home') };
+const env = { ...process.env, VELORA_HOME: path.join(root, 'home'), CLAUDE_CONFIG_DIR:path.join(root,'claude'), CODEX_HOME:path.join(root,'codex') };
+fs.mkdirSync(path.join(env.CLAUDE_CONFIG_DIR,'projects','fixture'),{recursive:true});
+fs.mkdirSync(path.join(env.CODEX_HOME,'sessions'),{recursive:true});
+for(let i=0;i<25;i++)fs.writeFileSync(path.join(env.CLAUDE_CONFIG_DIR,'projects','fixture',i+'.jsonl'),JSON.stringify({type:'user',cwd:root,sessionId:'old-'+i,uuid:'prompt-'+i,message:{content:'Prior attempt '+i}}));
 function run(...args) {
   return execFileSync(cli, ['--db=' + db, ...args], { env, encoding: 'utf8', timeout: 30000 });
 }
 (async () => {
-  for (const command of ['tasks','inbox','agents','documents','projects','integrations','status','brain','missions','workspace','crews','workflows','automations','connections','mcp','approvals','journal','doctor','settings','update','serve']) {
+  for (const command of ['history','tasks','inbox','agents','documents','projects','integrations','status','brain','missions','workspace','crews','workflows','automations','connections','mcp','approvals','journal','doctor','settings','update','serve']) {
     assert(run(command, '--help').length > 20, command);
   }
+  const history=JSON.parse(run('history','--local-history'));assert.equal(history.total,25);assert.equal(history.items.length,20);
+  const next=JSON.parse(run('history','--local-history','--offset',String(history.nextOffset),'--generation',String(history.generation)));assert.equal(next.items.length,5);
+  assert.equal(JSON.parse(run('history','--local-history','--search','Prior attempt 24')).total,1);
   assert.deepEqual(JSON.parse(run('tasks', '--page-json')).items, []);
   JSON.parse(run('projects', 'create', 'Native CLI acceptance'));
   assert(run('projects', '--json').includes('Native CLI acceptance'));
