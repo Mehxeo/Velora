@@ -62,7 +62,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     const version=await main('pilotElectron.app.getVersion()');
     let result;
     if(mode==='seed'){
-      assert.equal(version,'3.0.0-alpha.82.2.1');
+      assert.equal(version,'3.0.0-alpha.82.4');
       const fixture=await evaluate(`(async()=>{
         const project=await window.velora.project.save({name:'Upgrade continuity project'});
         const chat=await window.velora.chat.create('Upgrade continuity conversation');

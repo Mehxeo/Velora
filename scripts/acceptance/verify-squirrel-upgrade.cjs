@@ -66,7 +66,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await wait(() => output.includes('workspace visible'));
     const evaluate = code => main('pilotElectron.BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(' + JSON.stringify(code) + ')');
     const version=await main('pilotElectron.app.getVersion()');
-    assert.equal(version,'3.0.0-alpha.82.2.1');
+    assert.equal(version,'3.0.0-alpha.82.4');
     const download=await main(`(async()=>{
       globalThis.pilotUpdater=process.getBuiltinModule('module').createRequire(pilotElectron.app.getAppPath()+'/package.json')('electron-updater').autoUpdater;
       pilotUpdater.autoInstallOnAppQuit=true;pilotUpdater.autoRunAppAfterInstall=true;pilotUpdater.autoDownload=false;pilotUpdater.allowPrerelease=true;
