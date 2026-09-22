@@ -36,7 +36,7 @@ function windowsInstall(file,destination){
 let manifest;
 (async()=>{
  download(tag,candidate,'ARTIFACTS.json');manifest=JSON.parse(fs.readFileSync(path.join(candidate,'ARTIFACTS.json')));
- assert.equal(manifest.desktopSourceCommit,'1d6c95d95871b9927f6016b188c54e9bb1c9d7ab');
+ assert.equal(manifest.desktopSourceCommit,'93a4d5e3985a1465c97aac08ce8bd3464275662c');
  // Fetch all expiring URLs before time-consuming install/UI tests.
  const artifactNames=process.platform==='darwin'?[`Velora-3.0.0-alpha.82.5${process.arch==='arm64'?'-arm64':''}-mac.zip`,`Velora-3.0.0-alpha.82.5${process.arch==='arm64'?'-arm64':''}.dmg`,'latest-mac.yml',`velora-cli-macos-${process.arch}.zip`]:[windowsCandidate,'velora-cli-windows-x64.zip'];
  for(const name of artifactNames){download(tag,candidate,name);verify(name);}
