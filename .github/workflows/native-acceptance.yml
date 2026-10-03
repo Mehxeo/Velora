@@ -12,7 +12,7 @@ on:
         default: all
         options: [all, macs, mac-intel, windows, windows-arm]
       probe_only:
-        description: Verify native runners without downloading candidate
+        description: Verify published downloads anonymously without installing
         type: boolean
         default: true
 permissions:
@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -35,6 +37,7 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate }}
         run: node scripts/acceptance/public-downloads.cjs
   native:
+    if: ${{ !inputs.probe_only }}
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +46,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
