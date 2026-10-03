@@ -21,6 +21,19 @@ concurrency:
   group: native-binary-acceptance-${{ inputs.platforms || 'all' }}
   cancel-in-progress: false
 jobs:
+  public-downloads:
+    if: ${{ inputs.probe_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify every published asset without authentication
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate }}
+        run: node scripts/acceptance/public-downloads.cjs
   native:
     strategy:
       fail-fast: false
