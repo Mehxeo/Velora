@@ -37,6 +37,9 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate }}
         run: node scripts/acceptance/public-downloads.cjs
   native:
+    # Draft release downloads require push access; anonymous probes stay read-only.
+    permissions:
+      contents: write
     if: ${{ !inputs.probe_only }}
     strategy:
       fail-fast: false
