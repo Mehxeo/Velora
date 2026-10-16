@@ -22,6 +22,19 @@ fs.mkdirSync(downloads);
 function run(file, args, timeout = 300000) {
   return execFileSync(file, args, { encoding: 'utf8', timeout, stdio: 'pipe' });
 }
+function validateTicket(target) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try { return run('xcrun', ['stapler', 'validate', target]); }
+    catch (error) {
+      // CloudKit can disconnect even when the downloaded staple is valid.
+      // Retry only transport failures; invalid or missing tickets still fail.
+      const transportFailure = error.status === 68 && /NSURLErrorDomain Code=-(1005|1001|1009)\b/.test(String(error.stdout));
+      if (!transportFailure || attempt === 4) throw error;
+      console.warn(`Apple ticket service transport failure; retry ${attempt}/3`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 10000);
+    }
+  }
+}
 function download(name) {
   run('gh', ['release', 'download', tag, '--repo', 'Mehxeo/Velora', '--pattern', name, '--dir', downloads]);
   return path.join(downloads, name);
@@ -47,7 +60,7 @@ let executable;
 if (process.platform === 'darwin') {
   const suffix = process.arch === 'arm64' ? '-arm64' : '';
   const image = verifiedDownload(`Velora-${version}${suffix}.dmg`);
-  run('xcrun', ['stapler', 'validate', image]);
+  validateTicket(image);
   run('spctl', ['-a', '-vvv', '-t', 'open', '--context', 'context:primary-signature', image]);
   const mount = path.join(root, 'mount');
   fs.mkdirSync(mount);
@@ -56,7 +69,7 @@ if (process.platform === 'darwin') {
   try { run('ditto', [path.join(mount, 'Velora.app'), bundle]); }
   finally { run('hdiutil', ['detach', mount]); }
   run('codesign', ['--verify', '--deep', '--strict', bundle]);
-  run('xcrun', ['stapler', 'validate', bundle]);
+  validateTicket(bundle);
   run('spctl', ['--assess', '--type', 'execute', '--verbose', bundle]);
   executable = path.join(bundle, 'Contents', 'MacOS', 'Velora');
   const architecture = run('file', [executable]);
