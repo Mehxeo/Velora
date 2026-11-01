@@ -67,7 +67,8 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     const native=await evaluate("window.velora.tasks.nativeHistory({consent:true,refresh:true})");
     assert.equal(native.total,1);assert.equal(native.items[0].nativeId,'pre-install-fixture');assert(native.items[0].entries[0].text.includes('database lock'));
     const denied=await evaluate("window.velora.tasks.nativeHistory({}).then(()=>false,()=>true)");assert.equal(denied,true);
-    await evaluate("location.hash='/sessions'");await waitPage("document.body.innerText.includes('Read local agent history')");
+    await evaluate("location.hash='/runs'");await waitPage("[...document.querySelectorAll('summary')].some(s=>s.textContent.includes('History from your other agent apps'))");
+    await evaluate("[...document.querySelectorAll('summary')].find(s=>s.textContent.includes('History from your other agent apps')).click()");await waitPage("document.body.innerText.includes('Read local agent history')");
     await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Read local agent history').click()");
     await waitPage("document.body.innerText.includes('pre-install') || document.body.innerText.includes('Investigated the database lock')");
     for(const width of [920,1225,1440]){
@@ -77,6 +78,10 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage().then(image=>process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile)}+'.'+${width}+'.png',image.toPNG()))`);
     }
     await evaluate("window.velora.tasks.clearNativeHistory()");
+    // Exercise the supported classic environment navigation in this isolated profile.
+    await evaluate("localStorage.setItem('velora.roomFirstNav','false')");
+    await main("pilotElectron.BrowserWindow.getAllWindows()[0].webContents.reload()");
+    await waitPage("!!document.querySelector('[role=tablist][aria-label=Environment]')");
     const rows = [];
     for (const environment of ['Work', 'Code']) {
       await evaluate(`(async()=>{[...document.querySelectorAll('[role="tab"]')].find(x=>x.textContent.trim()===${JSON.stringify(environment)}).click();await ${frames};})()`);
@@ -85,7 +90,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
         const row = await evaluate(`(async()=>{const a=[...document.querySelectorAll('nav[aria-label="Velora"] a')].find(a=>a.getAttribute('href')===${JSON.stringify(link.href)});a.focus();const start=performance.now();a.click();await ${frames};return {href:location.hash,ms:performance.now()-start,recovery:document.body.innerText.includes('Velora needs a moment of attention')};})()`);
         rows.push({ environment, ...link, actual: row.href, frameMs: row.ms });
         assert(!row.recovery, 'Recovery screen: ' + link.label);
-        assert(row.href === link.href || (link.href === '#/setup' && row.href.startsWith('#/setup/')), `${link.label}: ${link.href} opened ${row.href}`);
+        assert(row.href === link.href || (link.href === '#/setup' && row.href.startsWith('#/settings/')) || (link.href === '#/sessions' && row.href === '#/runs'), `${link.label}: ${link.href} opened ${row.href}`);
       }
     }
     await evaluate(`(async()=>{location.hash='/chatProjects';await ${frames};})()`);
@@ -103,8 +108,8 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       assert.equal(feedback.href, target);
       keyboard.push(feedback.ms);
     }
-    await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyDown',keyCode:'k',modifiers:['meta']});pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyUp',keyCode:'k',modifiers:['meta']});`);
-    await evaluate(`(async()=>{await ${frames};const item=[...document.querySelectorAll('[cmdk-item]')].find(x=>x.textContent.trim()==='Projects');if(!item)throw Error('Projects missing from palette');item.click();await ${frames};})()`);
+    await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyDown',keyCode:'k',modifiers:[process.platform==='darwin'?'meta':'control']});pilotElectron.BrowserWindow.getAllWindows()[0].webContents.sendInputEvent({type:'keyUp',keyCode:'k',modifiers:[process.platform==='darwin'?'meta':'control']});`);
+    await evaluate(`(async()=>{await ${frames};const item=[...document.querySelectorAll('[cmdk-item]')].find(x=>x.textContent.trim()==='Chat collections');if(!item)throw Error('Projects missing from palette');item.click();await ${frames};})()`);
     assert.equal(await evaluate('location.hash'), '#/chat-projects');
 
     // Real preload -> main -> daemon round trip in the isolated profile.
@@ -159,10 +164,58 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await new Promise(resolve=>setTimeout(resolve,1500));
     await waitPage(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Retry')`);
     daily.reloadRecovery='passed';daily.reconciledRetry='passed';daily.providerDispatch='not invoked';
+
+    // Exercise the integrated Proofpage path through the signed preload and daemon.
+    const intelligence = await evaluate(`(async()=>{
+      const project=await window.velora.workspaces.createSample();
+      if(!project?.id)throw Error('Could not create the isolated sample project.');
+      const request=(action,input)=>window.velora.intelligence.request({projectId:project.id,action,input});
+      const initial=await request('snapshot');
+      if(initial.settings.knowledge||initial.settings.training)throw Error('Intelligence opt-ins must start off.');
+      const content='Authentication handlers require focused regression tests before review. Custom data: हिन्दी · 日本語 · ✓.';
+      const source=await request('evidence.import',{title:'Packaged custom data policy',source:'local:fictional-policy.md',content});
+      const knowledge=await request('knowledge.propose',{title:'Packaged custom data policy',content,source:'Proofpage '+source.current_revision,evidenceRevision:source.current_revision,category:'architecture'});
+      await request('knowledge.review',{id:knowledge.id,decision:'approved'});
+      await request('settings.save',{knowledge:true,training:true});
+      const context=await request('knowledge.context',{query:'Authentication regression tests'});
+      if(context.entries.length!==1||!context.text.includes(content))throw Error('Reviewed context did not reach the packaged host.');
+      await request('evidence.review',{revisionId:source.current_revision,authorized:true,basis:'own_content',note:'Fictional policy owned by the packaged acceptance fixture.'});
+      const dataset=await request('dataset.create',{title:'Packaged custom data examples',examples:[{revisionId:source.current_revision,prompt:'What testing belongs with authentication changes?',answer:content,quote:content}]});
+      let draftDenied=false;try{await request('dataset.export',{id:dataset.id});}catch{draftDenied=true;}if(!draftDenied)throw Error('An unapproved dataset was exportable.');
+      await request('dataset.review',{id:dataset.id,decision:'approved',authorized:true});
+      const exported=await request('dataset.export',{id:dataset.id});
+      if(JSON.parse(exported.jsonl.trim()).messages[1].content!==content||exported.manifest.schema!=='proofpage.training.v1')throw Error('Packaged dataset export differs.');
+      return {projectId:project.id,sourceId:source.current_revision,datasetId:dataset.id,unicodeImport:true,approvedContext:true,reviewedExport:true,draftExportDenied:true};
+    })()`);
+    await evaluate("localStorage.setItem('velora.roomFirstNav','true');localStorage.setItem('velora.welcome.dismissed','1')");
+    await main("pilotElectron.BrowserWindow.getAllWindows()[0].webContents.reload()");
+    const intelligencePath='/intelligence?project='+encodeURIComponent(intelligence.projectId);
+    await waitPage("!!window.velora?.intelligence");
+    await evaluate('location.hash='+JSON.stringify(intelligencePath+'&tab=evidence'));
+    await waitPage("document.body.innerText.includes('Proofpage · Your custom data') && document.body.innerText.includes('Packaged custom data policy')");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Packaged custom data policy').click()");
+    await waitPage("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Update source permission')");
+    await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage().then(image=>process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile)}+'.proofpage.png',image.toPNG()))`);
+    await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Knowledge').click()");
+    await waitPage("document.body.innerText.includes('Packaged custom data policy') && document.body.innerText.includes('approved')");
+    await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Datasets').click()");
+    await waitPage("document.body.innerText.includes('Packaged custom data examples')");
+    await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Proofpage').click()");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Packaged custom data policy').click()");
+    await waitPage("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Revoke training permission')");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Revoke training permission').click()");
+    await waitPage("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Grant source permission')");
+    const revoked=await evaluate(`window.velora.intelligence.request({projectId:${JSON.stringify(intelligence.projectId)},action:'dataset.export',input:{id:${JSON.stringify(intelligence.datasetId)}}}).then(()=>false,()=>true)`);
+    assert(revoked,'Source revocation must block a previously approved export.');
+    intelligence.sourceRevocation='passed';
+    await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Overview').click()");
+    await waitPage("document.body.innerText.includes('Bring your custom data with Proofpage')");
+    await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage().then(image=>process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile)}+'.intelligence.png',image.toPNG()))`);
+
     const visual=[];
     for(const [width,height] of [[920,640],[1225,768],[1440,900]]){
       await main(`pilotElectron.BrowserWindow.getAllWindows()[0].setSize(${width},${height})`);
-      for(const route of ['/tasks','/settings/account','/settings/coworkers','/settings/agents','/settings/routing','/settings/connections','/settings/skills','/settings/usage','/settings/health','/settings/appearance','/settings/updates','/documents','/chat-projects','/chats','/projects','/autopilot','/automations','/journal','/crews','/workflows','/approvals','/inbox','/sessions']){
+      for(const route of ['/tasks','/settings/account','/settings/coworkers','/settings/agents','/settings/routing','/settings/connections','/settings/skills','/settings/usage','/settings/health','/settings/appearance','/settings/updates','/documents','/chat-projects','/chats','/projects','/autopilot','/automations','/journal','/crews','/workflows','/approvals','/inbox','/sessions','/intelligence']){
         await evaluate(`location.hash=${JSON.stringify(route)}`);
         await new Promise(resolve=>setTimeout(resolve,350));
         const check=await evaluate(`({route:location.hash,width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth+1,contentOverflow:document.querySelector("main").scrollWidth>document.querySelector("main").clientWidth+1,recovery:document.body.innerText.includes('Velora needs a moment of attention')})`);
@@ -177,7 +230,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
       await evaluate(`(async()=>{await window.velora.settings.updatePreferences({appearance:{theme:${JSON.stringify(theme)},reducedMotion:'on',textScale:'large'}});})()`);
       await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.reload()`);
       await waitPage(`document.documentElement.dataset.theme === ${JSON.stringify(theme)} && document.documentElement.dataset.reducedMotion === "on"`);
-      for(const route of ['/tasks','/settings/agents','/documents','/approvals']){
+      for(const route of ['/tasks','/settings/agents','/documents','/approvals','/intelligence']){
         await evaluate(`location.hash=${JSON.stringify(route)}`);
         await new Promise(resolve=>setTimeout(resolve,250));
         const row=await evaluate(`({theme:document.documentElement.dataset.theme,route:location.hash,motion:document.documentElement.dataset.reducedMotion,overflow:document.querySelector('main').scrollWidth>document.querySelector('main').clientWidth+1})`);
@@ -193,7 +246,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1)`);
     const sorted = [...keyboard].sort((a,b) => a-b);
     const runtime = await main(`({arch:process.arch,platform:process.platform})`);
-    const result = { executable, ...runtime, nativeHistory: "passed", daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
+    const result = { executable, ...runtime, nativeHistory: "passed", intelligence, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
     fs.writeFileSync(resultFile, JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify({ routes: rows.length, keyboardP95Ms: result.keyboardTwoFrameP95Ms, projectNavigation: 'passed' }));
   } finally {
