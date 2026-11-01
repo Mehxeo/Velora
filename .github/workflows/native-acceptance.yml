@@ -5,7 +5,7 @@ on:
       candidate:
         description: Draft release tag containing candidate binaries
         required: true
-        default: v3.0.0-alpha.82.5
+        default: v3.0.0-beta.9
       platforms:
         description: Native targets to test
         type: choice
@@ -14,7 +14,7 @@ on:
       probe_only:
         description: Verify native runners without downloading candidate
         type: boolean
-        default: true
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -40,7 +40,6 @@ jobs:
         if: ${{ !inputs.probe_only }}
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_URLS: ${{ secrets.ALPHA82_ACCEPTANCE_DOWNLOADS }}
           CANDIDATE_TAG: ${{ inputs.candidate }}
           INSTALLER_KIND: ${{ matrix.installer }}
         run: node scripts/acceptance/native.cjs
