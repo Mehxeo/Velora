@@ -60,6 +60,9 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     quit = () => main('pilotQuit()');
     await send('Debugger.resume');
     await wait(() => output.includes('workspace visible'));
+    // Disposable UI acceptance must keep frames running while the OS changes focus.
+    await main("pilotElectron.BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false);pilotElectron.BrowserWindow.getAllWindows()[0].showInactive()");
+    if(process.env.GITHUB_ACTIONS==='true')await main("pilotElectron.BrowserWindow.getAllWindows()[0].show();pilotElectron.BrowserWindow.getAllWindows()[0].focus()");
     const evaluate = code => main('pilotElectron.BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(' + JSON.stringify(code) + ')');
     const frames = 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))';
     const waitPage=async expression=>{const deadline=Date.now()+10000;while(!await evaluate(expression)){if(Date.now()>deadline)throw Error('UI condition timed out: '+expression);await new Promise(resolve=>setTimeout(resolve,50));}};
@@ -246,7 +249,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1)`);
     const sorted = [...keyboard].sort((a,b) => a-b);
     const runtime = await main(`({arch:process.arch,platform:process.platform})`);
-    const result = { executable, ...runtime, nativeHistory: "passed", intelligence, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
+    const result = { executable, ...runtime, nativeHistory: "passed", intelligence, daily, visual, accessibility, pins: { reload: "passed", rename: "passed", deletion: "passed", crossAccountWrite: "denied", moveDown: "passed" }, routes: rows, keyboardSamples: keyboard, keyboardTwoFrameP95Ms: sorted[Math.ceil(sorted.length * .95)-1], legacyProjectLink: 'passed', commandPaletteProjects: 'passed', limitations: 'Fresh isolated profile; background throttling disabled for acceptance; synthetic Electron key events; two animation frames, not compositor or loaded team journey timing.' };
     fs.writeFileSync(resultFile, JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify({ routes: rows.length, keyboardP95Ms: result.keyboardTwoFrameP95Ms, projectNavigation: 'passed' }));
   } finally {
