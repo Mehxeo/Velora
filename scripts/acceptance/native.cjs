@@ -13,7 +13,7 @@ function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return 
 function download(release,dir,name){
  if(fs.existsSync(path.join(dir,name)))return;
  if(release!==tag)return run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});
- const url=JSON.parse(process.env.CANDIDATE_URLS||'{}')[name];assert(url,'Missing temporary download link for '+name);
+ const url=JSON.parse(process.env.CANDIDATE_URLS||'{}')[name];if(!url)return run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});
  assert.equal(new URL(url).hostname,'release-assets.githubusercontent.com');
  console.log('Download candidate:',name);
  // Send the temporary bearer URL through stdin, never command arguments/logs.
