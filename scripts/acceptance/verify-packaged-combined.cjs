@@ -196,7 +196,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await waitPage("!!window.velora?.intelligence");
     await evaluate('location.hash='+JSON.stringify(intelligencePath+'&tab=evidence'));
     await waitPage("document.body.innerText.includes('Proofpage · Your custom data') && document.body.innerText.includes('Packaged custom data policy')");
-    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Packaged custom data policy').click()");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.querySelector('strong')?.textContent.trim()==='Packaged custom data policy').click()");
     await waitPage("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Update source permission')");
     await main(`pilotElectron.BrowserWindow.getAllWindows()[0].webContents.capturePage().then(image=>process.getBuiltinModule('fs').writeFileSync(${JSON.stringify(resultFile)}+'.proofpage.png',image.toPNG()))`);
     await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Knowledge').click()");
@@ -204,7 +204,7 @@ if (!executable || !resultFile) throw Error('Supply candidate executable and out
     await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Datasets').click()");
     await waitPage("document.body.innerText.includes('Packaged custom data examples')");
     await evaluate("[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.trim()==='Proofpage').click()");
-    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Packaged custom data policy').click()");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.querySelector('strong')?.textContent.trim()==='Packaged custom data policy').click()");
     await waitPage("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Revoke training permission')");
     await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Revoke training permission').click()");
     await waitPage("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Grant source permission')");
