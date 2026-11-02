@@ -1,7 +1,5 @@
 name: Native binary acceptance
 on:
-  push:
-    branches: [release/proofpage-beta9-acceptance]
   workflow_dispatch:
     inputs:
       candidate:
@@ -18,7 +16,7 @@ on:
         type: boolean
         default: false
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: native-binary-acceptance-${{ inputs.platforms || 'all' }}
   cancel-in-progress: false
@@ -56,40 +54,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: beta9-native-${{ matrix.runner }}-${{ matrix.installer }}
+          name: beta9-native-${{ matrix.runner }}-${{ matrix.installer }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/velora-native-*/evidence/*
           if-no-files-found: ignore
           retention-days: 7
 
-  publish:
-    needs: native
-    if: ${{ success() && github.ref == 'refs/heads/release/proofpage-beta9-acceptance' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Publish the qualified beta 9 release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process');
-          const gh=(args)=>execFileSync('gh',args,{encoding:'utf8'});
-          const repo='Mehxeo/Velora',tag='v3.0.0-beta.9';
-          const latest=JSON.parse(gh(['api','repos/'+repo+'/releases/latest']));
-          assert(['v3.0.0-beta.8',tag].includes(latest.tag_name),'A newer release must not be replaced.');
-          const releases=JSON.parse(gh(['api','repos/'+repo+'/releases']));
-          const release=releases.find(r=>r.tag_name===tag);assert(release,'Candidate release is missing.');
-          assert.equal(release.assets.length,31);assert(release.assets.every(a=>a.state==='uploaded'&&a.digest?.startsWith('sha256:')));
-          const directory=fs.mkdtempSync(path.join(os.tmpdir(),'beta9-publication-'));
-          gh(['release','download',tag,'--repo',repo,'--pattern','ARTIFACTS.json','--dir',directory]);
-          const manifest=JSON.parse(fs.readFileSync(path.join(directory,'ARTIFACTS.json'),'utf8'));
-          assert.equal(manifest.desktopSourceCommit,'5b068984c305a6266462b2249007be2495a9bfdd');assert.equal(manifest.version,'3.0.0-beta.9');
-          for(const artifact of manifest.artifacts){const actual=release.assets.find(a=>a.name===artifact.name);assert(actual);assert.equal(actual.size,artifact.size);assert.equal(actual.digest,'sha256:'+artifact.sha256);}
-          const notes=(release.body||'')+'\n\nNative installation, upgrades, saved-data preservation, and Proofpage custom-data checks passed on Apple silicon, Intel Mac, Windows x64 and Windows ARM64. macOS installers are signed and notarized. Windows installers remain unsigned; SmartScreen may ask for confirmation on first run.\n';
-          const noteFile=path.join(directory,'release-notes.md');fs.writeFileSync(noteFile,notes);
-          gh(['release','edit',tag,'--repo',repo,'--draft=false','--prerelease=false','--latest','--notes-file',noteFile]);
-          const published=JSON.parse(gh(['api','repos/'+repo+'/releases/tags/'+tag]));assert.equal(published.draft,false);assert.equal(published.assets.length,31);
-          console.log('Published '+published.html_url+' with 31 verified assets.');
-          NODE
