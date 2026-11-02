@@ -9,7 +9,8 @@ assert.equal(tag,'v3.0.0-beta.9','This acceptance suite is pinned to the alpha.8
 assert.equal(process.env.GITHUB_ACTIONS,'true','Run installation tests only on disposable CI runners');
 const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'velora-native-')));const candidate=path.join(root,'candidate');const previous=path.join(root,'previous');
 fs.mkdirSync(candidate);fs.mkdirSync(previous);const evidence=path.join(root,'evidence');fs.mkdirSync(evidence);
-function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return execFileSync(cmd,args,{encoding:'utf8',stdio:'pipe',timeout:180000,...options});}
+function artifactEnvironment(){const env={...process.env};delete env.GH_TOKEN;delete env.GITHUB_TOKEN;return env;}
+function run(cmd,args,options={}){console.log('Run:',cmd,args.join(' '));return execFileSync(cmd,args,{encoding:'utf8',stdio:'pipe',timeout:180000,env:cmd==='gh'?process.env:artifactEnvironment(),...options});}
 function download(release,dir,name){
  if(fs.existsSync(path.join(dir,name)))return;
  if(release!==tag)return run('gh',['release','download',release,'--repo','Mehxeo/Velora','--dir',dir,'--pattern',name],{timeout:300000});
@@ -25,7 +26,7 @@ function verify(name){const expected=manifest.artifacts.find(a=>a.name===name||a
 function windowsInstall(file,destination){
  // Observe the installer's own exit status. PowerShell Start-Process can lose it
  // when running an emulated installer on an ARM runner.
- const result=spawnSync(file,['/S','/currentuser','/D='+destination],{encoding:'utf8',timeout:180000,windowsHide:true});
+ const result=spawnSync(file,['/S','/currentuser','/D='+destination],{encoding:'utf8',timeout:180000,windowsHide:true,env:artifactEnvironment()});
  console.log('NSIS process result:',JSON.stringify({installer:path.basename(file),status:result.status,signal:result.signal,error:result.error?.message,stdout:result.stdout,stderr:result.stderr}));
  if(result.error||result.status!==0){
   console.log(run('pwsh',['-NoProfile','-Command',"Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue | Where-Object {$_.ProviderName -match 'Application Error|Windows Error Reporting'} | Select-Object -First 5 TimeCreated,Id,Message | ConvertTo-Json" ]));
