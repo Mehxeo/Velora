@@ -21,3 +21,7 @@ updater=updater.replace(anchor,"      let resolvedExecutable;try{resolvedExecuta
 updater=updater.replace('[executable,fs.realpathSync(executable)]','[executable,resolvedExecutable]');
 fs.writeFileSync(squirrel,updater);
 console.log('Prepared native transcript, pointer activation, and updater replacement timing checks.');
+
+source=source.replaceAll('    await evaluate("[...document.querySelectorAll(\'button\')].find(b=>b.querySelector(\'strong\')?.textContent.trim()===\'Packaged custom data policy\').click()");',
+'    await waitPage("[...document.querySelectorAll(\'button\')].some(b=>b.querySelector(\'strong\')?.textContent.trim()===\'Packaged custom data policy\')");\n    await evaluate("[...document.querySelectorAll(\'button\')].find(b=>b.querySelector(\'strong\')?.textContent.trim()===\'Packaged custom data policy\').click()");');
+fs.writeFileSync(file,source);
